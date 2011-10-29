@@ -1,7 +1,7 @@
 Name:                ekg
 Version:             0.1.0.0
 Synopsis:            Remote monitoring of executables
--- Description:
+Description:         Monitor any running executable over HTTP
 Homepage:            https://github.com/tibbe/ekg
 License:             BSD3
 License-file:        LICENSE
