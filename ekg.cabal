@@ -1,0 +1,19 @@
+Name:                ekg
+Version:             0.1.0.0
+Synopsis:            Remote monitoring of executables
+-- Description:
+Homepage:            https://github.com/tibbe/ekg
+License:             BSD3
+License-file:        LICENSE
+Author:              Johan Tibell
+Maintainer:          johan.tibell@gmail.com
+Category:            System
+Build-type:          Simple
+Cabal-version:       >=1.2
+
+Library
+  Exposed-modules:     System.Remote.Monitoring
+
+  Build-depends:       aeson < 0.4,
+                       base >= 4.3.1 && < 5,
+                       bytestring < 1.0
