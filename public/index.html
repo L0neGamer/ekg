@@ -1,0 +1,22 @@
+<html>
+  <head>
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
+    <script type="text/javascript">
+var fetchData = function() {
+  $.get("http://localhost:3000/", function(data) {
+    $(".cpu_seconds").html(data.cpu_seconds);
+  }, "json");
+  setTimeout(fetchData, 1000);
+};
+
+$(document).ready(function() {
+  fetchData();
+});
+    </script>
+  </head>
+  <body>
+    <table>
+      <tr><td>cpu_seconds</td><td class="cpu_seconds"></td></tr>
+    </table>
+  </body>
+</html>

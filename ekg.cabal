@@ -16,4 +16,9 @@ Library
 
   Build-depends:       aeson < 0.4,
                        base >= 4.3.1 && < 5,
-                       bytestring < 1.0
+                       bytestring < 1.0,
+                       enumerator,
+                       http-types,
+                       text,
+                       transformers,
+                       wai
