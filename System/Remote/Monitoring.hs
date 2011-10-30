@@ -8,8 +8,8 @@ import qualified Data.ByteString.Lazy as L
 import GHC.Stats
 
 instance A.ToJSON GCStats where
-    toJSON (GCStats {..}) = A.object [
-          "bytes_allocated"          .= bytesAllocated
+    toJSON (GCStats {..}) = A.object
+        [ "bytes_allocated"          .= bytesAllocated
         , "num_gcs"                  .= numGcs
         , "max_bytes_used"           .= maxBytesUsed
         , "num_bytes_usage_samples"  .= numByteUsageSamples
