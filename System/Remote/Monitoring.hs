@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
--- | Allows for remote monitoring of a running program over HTTP.
+-- | Allows for remote monitoring of a running executable over HTTP.
 --
 -- This module can be used to run an HTTP server (or a Snap handler)
 -- that replies to HTTP requests with either an HTML page or a JSON
@@ -55,15 +55,62 @@ import System.FilePath
 -- or compile it with
 --
 -- > -with-rtsopts=-T
---
--- Enabling the @-T@ flag shouldn't have a noticable impact on program
--- performance so you can always run your application with it enabled.
 
 -- $api
 --
--- The HTTP server replies to GET requests to the given URL.  The
--- client can choose the desired response Content-Type by setting the
--- Accept header to either "text/html" or "application/json".
+-- The HTTP server replies to GET requests to the URL passed to
+-- 'forkServer'.  The client can choose the desired response
+-- Content-Type by setting the Accept header to either \"text\/html\"
+-- or \"application\/json\".  If set to \"application\/json\", the
+-- server returns a JSON object with the following members:
+--
+-- [@bytes_allocated@] Total number of bytes allocated
+--
+-- [@num_gcs@] Number of garbage collections performed
+--
+-- [@max_bytes_used@] Maximum number of live bytes seen so far
+--
+-- [@num_bytes_usage_samples@] Number of byte usage samples taken
+--
+-- [@cumulative_bytes_used@] Sum of all byte usage samples, can be
+-- used with @numByteUsageSamples@ to calculate averages with
+-- arbitrary weighting (if you are sampling this record multiple
+-- times).
+--
+-- [@bytes_copied@] Number of bytes copied during GC
+--
+-- [@current_bytes_used@] Current number of live bytes
+--
+-- [@current_bytes_slop@] Current number of bytes lost to slop
+--
+-- [@max_bytes_slop@] Maximum number of bytes lost to slop at any one time so far
+--
+-- [@peak_megabytes_allocated@] Maximum number of megabytes allocated
+--
+-- [@mutator_cpu_seconds@] CPU time spent running mutator threads.
+-- This does not include any profiling overhead or initialization.
+--
+-- [@mutator_wall_seconds@] Wall clock time spent running mutator
+-- threads.  This does not include initialization.
+--
+-- [@gc_cpu_seconds@] CPU time spent running GC
+--
+-- [@gc_wall_seconds@] Wall clock time spent running GC
+--
+-- [@cpu_seconds@] Total CPU time elapsed since program start
+--
+-- [@wall_seconds@] Total wall clock time elapsed since start
+--
+-- [@par_avg_bytes_copied@] Number of bytes copied during GC, minus
+-- space held by mutable lists held by the capabilities.  Can be used
+-- with 'parMaxBytesCopied' to determine how well parallel GC utilized
+-- all cores.
+--
+-- [@par_max_bytes_copied@] Sum of number of bytes copied each GC by
+-- the most active GC thread each GC.  The ratio of
+-- 'parAvgBytesCopied' divided by 'parMaxBytesCopied' approaches 1 for
+-- a maximally sequential run and approaches the number of threads
+-- (set by the RTS flag @-N@) for a maximally parallel run.
 
 -- | Run an HTTP server, that exposes GC stats, in a new thread.  The
 -- server replies to requests on the given host and port
