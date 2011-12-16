@@ -76,27 +76,6 @@ $(function () {
     };
     fetchData();
 
-    var emptyStats = {
-        bytes_allocated          : 0,
-        num_gcs                  : 0,
-        max_bytes_used           : 0,
-        num_bytes_usage_samples  : 0,
-        cumulative_bytes_used    : 0,
-        bytes_copied             : 0,
-        current_bytes_used       : 0,
-        current_bytes_slop       : 0,
-        max_bytes_slop           : 0,
-        peak_megabytes_allocated : 0,
-        mutator_cpu_seconds      : 0,
-        mutator_wall_seconds     : 0,
-        gc_cpu_seconds           : 0,
-        gc_wall_seconds          : 0,
-        cpu_seconds              : 0,
-        wall_seconds             : 0,
-        par_avg_bytes_copied     : 0,
-        par_max_bytes_copied     : 0
-    };
-
     function addPlot(elem, series, opts) {
         var defaultOptions = {
             series: { shadowSize: 0 },  // drawing is faster without shadows
