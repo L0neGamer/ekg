@@ -10,15 +10,21 @@ Maintainer:          johan.tibell@gmail.com
 Category:            System
 Build-type:          Simple
 Cabal-version:       >=1.2
+Data-files:          public/index.html, public/monitor.js, public/monitor.css,
+                     public/jquery.flot.min.js public/blueprint/screen.css
+                     public/blueprint/print.css public/blueprint/ie.css
 
 Library
   Exposed-modules:     System.Remote.Monitoring
 
-  Build-depends:       aeson < 0.4,
+  Other-modules:       Paths_ekg
+
+  Build-depends:       aeson < 0.5,
                        base >= 4.3.1 && < 5,
                        bytestring < 1.0,
-                       enumerator,
-                       http-types,
+                       filepath,
                        text,
-                       transformers,
-                       wai
+                       snap-core,
+                       snap-server,
+                       transformers
+  Ghc-options:         -Wall

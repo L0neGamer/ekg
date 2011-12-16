@@ -1,0 +1,65 @@
+/**
+ * Blueprint/flot compatibility
+ *
+ * Resets some styles back to the browser default.
+ */
+
+.plot table {
+    width: auto;
+    border-spacing: 2px;
+}
+
+.plot th,
+.plot td,
+.plot caption {
+    padding: 0;
+}
+
+/**
+ * Top bar
+ */
+
+.bar {
+    overflow: hidden;
+    background-color: #777;
+    background-color: #2D2D2D;
+    color: #CCC;
+    padding: 0 10px;
+    line-height: 27px;
+}
+
+.title {
+    font-weight: bold;
+}
+
+.update-control {
+    float: right;
+}
+
+/**
+ * Container
+ */
+
+/* Make the container use the whole window */
+.container {
+    width: auto;
+    margin: 10px 0 0 10px;
+}
+
+/**
+ * Plots
+ */
+
+.plot {
+    width: 600px;
+    height: 300px;
+    margin-bottom: 1.5em;
+}
+
+/**
+ * Table
+ */
+
+.value {
+    text-align: right;
+}

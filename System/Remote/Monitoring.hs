@@ -1,31 +1,85 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
-module System.Remote.Monitoring where
+-- | Allows for remote monitoring of a running program over HTTP.
+--
+-- This module can be used to run an HTTP server (or a Snap handler)
+-- that replies to HTTP requests with either an HTML page or a JSON
+-- object.  The former can be used by a human to get an overview of a
+-- program's GC stats and the latter can be used be automated tools.
+--
+-- Typical usage is to start the monitor server on program startup
+--
+-- > main = do
+-- >     forkServer "localhost:8000"
+-- >     ...
+--
+-- and then periodically check the stats using a browser or using a
+-- command line tool like curl
+--
+-- > $ curl -H "Accept: application/json" http://localhost:8000/
+module System.Remote.Monitoring
+    (
+      -- * Required configuration
+      -- $configuration
 
+      -- * JSON API
+      -- $api
+      forkServer
+    , monitor
+    ) where
+
+import Control.Applicative
+import Control.Concurrent
 import Control.Monad.IO.Class
 import qualified Data.Aeson.Encode as A
 import Data.Aeson.Types ((.=))
 import qualified Data.Aeson.Types as A
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
-import qualified Data.ByteString.Lazy as L
-import Data.Char (ord)
-import Data.Enumerator
 import Data.Function
 import Data.List as List
-import Data.Maybe
-import Data.Monoid
 import Data.Word
 import GHC.Stats
-import Network.HTTP.Types
-import Network.Wai
+import Paths_ekg
+import Snap.Core
+import Snap.Http.Server
+import Snap.Util.FileServe
+import System.FilePath
 
+-- $configuration
+--
+-- To use this module you must first enable GC stats collection in
+-- your program.  To do that, either run your program with
+--
+-- > +RTS -T
+--
+-- or compile it with
+--
+-- > -with-rtsopts=-T
+--
+-- Enabling the @-T@ flag shouldn't have a noticable impact on program
+-- performance so you can always run your application with it enabled.
+
+-- $api
+--
+-- The HTTP server replies to GET requests to the given URL.  The
+-- client can choose the desired response Content-Type by setting the
+-- Accept header to either "text/html" or "application/json".
+
+-- | Run an HTTP server, that exposes GC stats, in a new thread.  The
+-- server replies to requests on the given host and port
+-- (e.g. "localhost:8000").  You can kill the server by killing the
+-- thread (i.e. by throwing it an asynchronous exception.)
+forkServer :: String -> IO ThreadId
+forkServer _addr = forkIO $ quickHttpServe monitor
+
+-- Orphan instance
 instance A.ToJSON GCStats where
     toJSON (GCStats {..}) = A.object
         [ "bytes_allocated"          .= bytesAllocated
         , "num_gcs"                  .= numGcs
         , "max_bytes_used"           .= maxBytesUsed
         , "num_bytes_usage_samples"  .= numByteUsageSamples
-        , "cumulative_butes_used"    .= cumulativeBytesUsed
+        , "cumulative_bytes_used"    .= cumulativeBytesUsed
         , "bytes_copied"             .= bytesCopied
         , "current_bytes_used"       .= currentBytesUsed
         , "current_bytes_slop"       .= currentBytesSlop
@@ -41,46 +95,32 @@ instance A.ToJSON GCStats where
         , "par_max_bytes_copied"     .= parMaxBytesCopied
         ]
 
-getStatsAsJson :: IO L.ByteString
-getStatsAsJson = (A.encode . A.toJSON) `fmap` getGCStats
+-- | A handler that can be installed into an existing Snap application.
+monitor :: Snap ()
+monitor = do
+    dataDir <- liftIO getDataDir
+    route [ ("/", index) ]
+        <|> serveDirectory (dataDir </> "public")
 
-genericHandler :: Application
-genericHandler = toIteratee
-               . fromMaybe response406
-               . firstMatchingHandler
-               . contentTypes
+index :: Snap ()
+index = do
+    req <- getRequest
+    let acceptHdr = maybe "application/json" (List.head . parseHttpAccept) $
+                    getAcceptHeader req
+    if acceptHdr == "application/json"
+        then serveJson
+        else pass
   where
-    firstMatchingHandler :: [S.ByteString] -> Maybe (IO Response)
-    firstMatchingHandler = getFirst . mconcat
-                         . List.map (First . flip lookup handlers)
+    serveJson = do
+        modifyResponse $ setContentType "application/json"
+        stats <- liftIO getGCStats
+        writeLBS $ A.encode $ A.toJSON $ stats
 
-    contentTypes :: Request -> [S.ByteString]
-    contentTypes = maybe [] parseHttpAccept . lookup "Accept" . requestHeaders
+    getAcceptHeader :: Request -> Maybe S.ByteString
+    getAcceptHeader req = S.intercalate "," <$> getHeaders "Accept" req
 
-toIteratee :: IO Response -> Iteratee S.ByteString IO Response
-toIteratee m = liftIO m
-
-jsonHandler :: IO Response
-jsonHandler = do
-    bs <- getStatsAsJson
-    return $! responseLBS statusOK [("Content-Type", "application/json")] bs
-
-indexHandler :: IO Response
-indexHandler = return $ ResponseFile statusOK [("Content-Type", "text/html")]
-               "public/index.html" Nothing
-
-handlers :: [(S.ByteString, IO Response)]
-handlers =
-    [ ("text/json", jsonHandler)
-    , ("application/json", jsonHandler)
-    , ("text/html", indexHandler)
-    , ("*/*", jsonHandler)
-    ]
-
-ok = undefined
-
-response406 :: IO Response
-response406 = return $ responseLBS status404 [] L.empty  -- should be 406
+------------------------------------------------------------------------
+-- Utilities for working with accept headers
 
 -- | Parse the HTTP accept string to determine supported content types.
 parseHttpAccept :: S.ByteString -> [S.ByteString]
