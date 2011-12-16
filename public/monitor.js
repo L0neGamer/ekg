@@ -70,7 +70,12 @@ $(function () {
                 listeners[i](stats, now);
         }
         
-        $.get("http://localhost:8000/", onDataReceived, "json");
+        $.ajax({
+            url: "http://localhost:8000/",
+            dataType: 'json',
+            success: onDataReceived,
+            cache: false
+        });
         
         setTimeout(fetchData, updateInterval);
     };
