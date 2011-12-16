@@ -109,7 +109,8 @@ $(function () {
             xaxis: { mode: "time", tickSize: [10, "second"] }
         };
         var options = $.extend(true, {}, defaultOptions, opts)
-        var data = new Array(series.length), maxPoints = 60;
+        var data = new Array(series.length);
+        var maxPoints = 600;  // One point per pixel on a 600px wide plot
         for(var i = 0; i < series.length; i++)
             data[i] = [];
 
