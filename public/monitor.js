@@ -61,12 +61,6 @@ $(function () {
         return formatPercent(val, axis.tickDecimals);
     }
 
-    // Replaces every instance of the underscore character ("_") by a
-    // dash ("-").
-    function dasherize(s) {
-        return s.replace(/_/g, "-");
-    };
-
     // Fetch data periodically and notify interested parties.
     var listeners = [];
     var fetchData = function() {
