@@ -88,7 +88,7 @@ $(function () {
         };
         var options = $.extend(true, {}, defaultOptions, opts)
         var data = new Array(series.length);
-        var maxPoints = 600;  // One point per pixel on a 600px wide plot
+        var maxPoints = 60;
         for(var i = 0; i < series.length; i++)
             data[i] = [];
 
