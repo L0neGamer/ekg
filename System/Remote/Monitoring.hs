@@ -56,7 +56,7 @@ import System.FilePath
 --
 -- > -with-rtsopts=-T
 --
--- The overhead from `-T` is very small so it's safe to always leave
+-- The overhead from @-T@ is very small so it's safe to always leave
 -- it enabled.
 
 -- $api
