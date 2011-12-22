@@ -38,7 +38,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Function
 import Data.List as List
 import Data.Word
-import GHC.Stats
+import qualified GHC.Stats as Stats
 import Paths_ekg
 import Snap.Core
 import Snap.Http.Server
@@ -122,9 +122,11 @@ import System.FilePath
 forkServer :: String -> IO ThreadId
 forkServer _addr = forkIO $ quickHttpServe monitor
 
--- Orphan instance
-instance A.ToJSON GCStats where
-    toJSON (GCStats {..}) = A.object
+-- Newtype wrapper to avoid orphan instance.
+newtype Stats = Stats Stats.GCStats
+
+instance A.ToJSON Stats where
+    toJSON (Stats (Stats.GCStats {..})) = A.object
         [ "bytes_allocated"          .= bytesAllocated
         , "num_gcs"                  .= numGcs
         , "max_bytes_used"           .= maxBytesUsed
@@ -163,8 +165,8 @@ index = do
   where
     serveJson = do
         modifyResponse $ setContentType "application/json"
-        stats <- liftIO getGCStats
-        writeLBS $ A.encode $ A.toJSON $ stats
+        stats <- liftIO Stats.getGCStats
+        writeLBS $ A.encode $ A.toJSON $ Stats $ stats
 
     getAcceptHeader :: Request -> Maybe S.ByteString
     getAcceptHeader req = S.intercalate "," <$> getHeaders "Accept" req
