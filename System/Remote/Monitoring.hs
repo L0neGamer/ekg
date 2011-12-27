@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
--- | Allows for remote monitoring of a running executable over HTTP.
+-- | Allows for remote monitoring of a running process over HTTP.
 --
 -- This module can be used to run an HTTP server (or a Snap handler)
 -- that replies to HTTP requests with either an HTML page or a JSON
@@ -9,7 +9,7 @@
 -- Typical usage is to start the monitor server on program startup
 --
 -- > main = do
--- >     forkServer "localhost:8000"
+-- >     forkServer "localhost" 8000
 -- >     ...
 --
 -- and then periodically check the stats using a browser or using a
@@ -118,13 +118,16 @@ import System.FilePath ((</>))
 -- (set by the RTS flag @-N@) for a maximally parallel run.
 
 -- | Run an HTTP server, that exposes GC stats, in a new thread.  The
--- server replies to requests to the given host (e.g. "localhost") and
--- port.  The host argument can be either a numeric network address
--- (dotted quad for IPv4, colon-separated hex for IPv6) or a hostname.
+-- server replies to requests to the given host and port.  The host
+-- argument can be either a numeric network address (dotted quad for
+-- IPv4, colon-separated hex for IPv6) or a hostname
+-- (e.g. \"localhost\").
 --
 -- You can kill the server by killing the thread (i.e. by throwing it
 -- an asynchronous exception.)
-forkServer :: S.ByteString -> Int -> IO ThreadId
+forkServer :: S.ByteString  -- ^ Host to listen on
+           -> Int           -- ^ Port to listen on
+           -> IO ThreadId
 forkServer host port = forkIO $ httpServe conf monitor
   where conf = Config.setErrorLog Config.ConfigNoLog $
                Config.setAccessLog Config.ConfigNoLog $
