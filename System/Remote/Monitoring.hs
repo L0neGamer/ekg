@@ -27,24 +27,25 @@ module System.Remote.Monitoring
     , monitor
     ) where
 
-import Control.Applicative
-import Control.Concurrent
-import Control.Monad.IO.Class
+import Control.Applicative ((<$>), (<|>))
+import Control.Concurrent (ThreadId, forkIO)
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson.Encode as A
 import Data.Aeson.Types ((.=))
 import qualified Data.Aeson.Types as A
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
-import Data.Function
-import Data.List as List
-import Data.Word
+import Data.Function (on)
+import qualified Data.List as List
+import Data.Word (Word8)
 import qualified GHC.Stats as Stats
-import Paths_ekg
-import Snap.Core
-import Snap.Http.Server
-import Snap.Util.FileServe
-import System.FilePath
+import Paths_ekg (getDataDir)
+import Snap.Core (Request, Snap, getHeaders, getRequest, modifyResponse, pass,
+                  route, setContentType, writeLBS)
+import Snap.Http.Server (httpServe)
 import Snap.Http.Server.Config (defaultConfig, setHostname, setPort)
+import Snap.Util.FileServe (serveDirectory)
+import System.FilePath ((</>))
 
 -- $configuration
 --
@@ -182,7 +183,7 @@ index = do
 -- | Parse the HTTP accept string to determine supported content types.
 parseHttpAccept :: S.ByteString -> [S.ByteString]
 parseHttpAccept = List.map fst
-                . sortBy (rcompare `on` snd)
+                . List.sortBy (rcompare `on` snd)
                 . List.map grabQ
                 . S.split 44 -- comma
   where
