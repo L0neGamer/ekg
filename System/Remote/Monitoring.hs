@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 -- | Allows for remote monitoring of a running process over HTTP.
 --
--- This module can be used to run an HTTP server (or a Snap handler)
--- that replies to HTTP requests with either an HTML page or a JSON
--- object.  The former can be used by a human to get an overview of a
--- program's GC stats and the latter can be used be automated tools.
+-- This module can be used to run an HTTP server that replies to HTTP
+-- requests with either an HTML page or a JSON object.  The former can
+-- be used by a human to get an overview of a program's GC stats and
+-- the latter can be used be automated tools.
 --
 -- Typical usage is to start the monitor server on program startup
 --
@@ -24,7 +24,6 @@ module System.Remote.Monitoring
       -- * JSON API
       -- $api
       forkServer
-    , monitor
     ) where
 
 import Control.Applicative ((<$>), (<|>))
