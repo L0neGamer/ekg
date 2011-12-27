@@ -43,7 +43,7 @@ import Paths_ekg (getDataDir)
 import Snap.Core (Request, Snap, getHeaders, getRequest, modifyResponse, pass,
                   route, setContentType, writeLBS)
 import Snap.Http.Server (httpServe)
-import Snap.Http.Server.Config (defaultConfig, setHostname, setPort)
+import qualified Snap.Http.Server.Config as Config
 import Snap.Util.FileServe (serveDirectory)
 import System.FilePath ((</>))
 
@@ -126,7 +126,11 @@ import System.FilePath ((</>))
 -- an asynchronous exception.)
 forkServer :: S.ByteString -> Int -> IO ThreadId
 forkServer host port = forkIO $ httpServe conf monitor
-  where conf = setPort port $ setHostname host $ defaultConfig
+  where conf = Config.setErrorLog Config.ConfigNoLog $
+               Config.setAccessLog Config.ConfigNoLog $
+               Config.setPort port $
+               Config.setHostname host $
+               Config.defaultConfig
 
 -- Newtype wrapper to avoid orphan instance.
 newtype Stats = Stats Stats.GCStats
