@@ -1,32 +1,36 @@
-Name:                ekg
-Version:             0.1.0.0
-Synopsis:            Remote monitoring of executables
-Description:
+name:                ekg
+version:             0.1.0.0
+synopsis:            Remote monitoring of executables
+description:
   This library lets you remotely monitor a running process over HTTP.
   It provides a simple way to integrate a monitoring server into any
   application.
-Homepage:            https://github.com/tibbe/ekg
-License:             BSD3
-License-file:        LICENSE
-Author:              Johan Tibell
-Maintainer:          johan.tibell@gmail.com
-Category:            System, Network
-Build-type:          Simple
-Cabal-version:       >=1.2
-Data-files:          public/index.html, public/monitor.js, public/monitor.css,
+homepage:            https://github.com/tibbe/ekg
+license:             BSD3
+license-file:        LICENSE
+author:              Johan Tibell
+maintainer:          johan.tibell@gmail.com
+category:            System, Network
+build-type:          Simple
+cabal-version:       >=1.6
+data-files:          public/index.html, public/monitor.js, public/monitor.css,
                      public/jquery.flot.min.js public/blueprint/screen.css
                      public/blueprint/print.css public/blueprint/ie.css
 
-Library
-  Exposed-modules:     System.Remote.Monitoring
+library
+  exposed-modules:     System.Remote.Monitoring
 
-  Other-modules:       Paths_ekg
+  other-modules:       Paths_ekg
 
-  Build-depends:       aeson < 0.6,
+  build-depends:       aeson < 0.6,
                        base >= 4.5 && < 5,
                        bytestring < 1.0,
                        filepath < 1.4,
                        snap-core < 0.8,
                        snap-server < 0.8,
                        transformers < 0.3
-  Ghc-options:         -Wall
+  ghc-options:         -Wall
+
+source-repository head
+  type:     git
+  location: https://github.com/tibbe/ekg.git
