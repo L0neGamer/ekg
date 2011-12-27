@@ -12,7 +12,7 @@
 -- >     forkServer "localhost" 8000
 -- >     ...
 --
--- and then periodically check the stats using a browser or using a
+-- and then periodically check the stats using a web browser or a
 -- command line tool like curl
 --
 -- > $ curl -H "Accept: application/json" http://localhost:8000/
@@ -49,8 +49,9 @@ import System.FilePath ((</>))
 
 -- $configuration
 --
--- To use this module you must first enable GC stats collection in
--- your program.  To do that, either run your program with
+-- To use this module you must first enable GC stats collection for
+-- your program.  To enable GC stats collection, either run your
+-- program with
 --
 -- > +RTS -T
 --
@@ -58,16 +59,15 @@ import System.FilePath ((</>))
 --
 -- > -with-rtsopts=-T
 --
--- The overhead from @-T@ is very small so it's safe to always leave
--- it enabled.
+-- The runtime overhead of @-T@ is very small so it's safe to always
+-- leave it enabled.
 
 -- $api
 --
--- The HTTP server replies to GET requests to the URL passed to
--- 'forkServer'.  The client can choose the desired response
--- Content-Type by setting the Accept header to either \"text\/html\"
--- or \"application\/json\".  If set to \"application\/json\", the
--- server returns a JSON object with the following members:
+-- The HTTP server replies to GET requests to the host and port passed
+-- to 'forkServer'.  To get a JSON formatted response, the client must
+-- set the Accept header to \"application\/json\".  The server returns
+-- a JSON object with the following members:
 --
 -- [@bytes_allocated@] Total number of bytes allocated
 --
@@ -117,16 +117,18 @@ import System.FilePath ((</>))
 -- a maximally sequential run and approaches the number of threads
 -- (set by the RTS flag @-N@) for a maximally parallel run.
 
--- | Run an HTTP server, that exposes GC stats, in a new thread.  The
--- server replies to requests to the given host and port.  The host
--- argument can be either a numeric network address (dotted quad for
--- IPv4, colon-separated hex for IPv6) or a hostname
--- (e.g. \"localhost\").
+-- | Start an HTTP server in a new thread.  The server replies to GET
+-- requests to the given host and port.  The host argument can be
+-- either a numeric network address (dotted quad for IPv4,
+-- colon-separated hex for IPv6) or a hostname (e.g. \"localhost\").
+-- The client can set the desired response format (i.e. Content-Type)
+-- by setting the Accept header.  At the moment two response formats
+-- are available: \"application\/json\" and \"text\/html\".
 --
 -- You can kill the server by killing the thread (i.e. by throwing it
 -- an asynchronous exception.)
-forkServer :: S.ByteString  -- ^ Host to listen on
-           -> Int           -- ^ Port to listen on
+forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
+           -> Int           -- ^ Port to listen on (e.g. 8000)
            -> IO ThreadId
 forkServer host port = forkIO $ httpServe conf monitor
   where conf = Config.setErrorLog Config.ConfigNoLog $

@@ -2,9 +2,9 @@ Name:                ekg
 Version:             0.1.0.0
 Synopsis:            Remote monitoring of executables
 Description:
-  This library lets you remotely monitor a running executable over
-  HTTP.  It provides a simple way to integrate a monitoring server in
-  any application.
+  This library lets you remotely monitor a running process over HTTP.
+  It provides a simple way to integrate a monitoring server in any
+  application.
 Homepage:            https://github.com/tibbe/ekg
 License:             BSD3
 License-file:        LICENSE
