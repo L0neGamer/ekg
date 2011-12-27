@@ -44,6 +44,7 @@ import Snap.Core
 import Snap.Http.Server
 import Snap.Util.FileServe
 import System.FilePath
+import Snap.Http.Server.Config (defaultConfig, setHostname, setPort)
 
 -- $configuration
 --
@@ -116,11 +117,15 @@ import System.FilePath
 -- (set by the RTS flag @-N@) for a maximally parallel run.
 
 -- | Run an HTTP server, that exposes GC stats, in a new thread.  The
--- server replies to requests on the given host and port
--- (e.g. "localhost:8000").  You can kill the server by killing the
--- thread (i.e. by throwing it an asynchronous exception.)
-forkServer :: String -> IO ThreadId
-forkServer _addr = forkIO $ quickHttpServe monitor
+-- server replies to requests to the given host (e.g. "localhost") and
+-- port.  The host argument can be either a numeric network address
+-- (dotted quad for IPv4, colon-separated hex for IPv6) or a hostname.
+--
+-- You can kill the server by killing the thread (i.e. by throwing it
+-- an asynchronous exception.)
+forkServer :: S.ByteString -> Int -> IO ThreadId
+forkServer host port = forkIO $ httpServe conf monitor
+  where conf = setPort port $ setHostname host $ defaultConfig
 
 -- Newtype wrapper to avoid orphan instance.
 newtype Stats = Stats Stats.GCStats
