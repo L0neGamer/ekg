@@ -3,7 +3,7 @@ Version:             0.1.0.0
 Synopsis:            Remote monitoring of executables
 Description:
   This library lets you remotely monitor a running process over HTTP.
-  It provides a simple way to integrate a monitoring server in any
+  It provides a simple way to integrate a monitoring server into any
   application.
 Homepage:            https://github.com/tibbe/ekg
 License:             BSD3
