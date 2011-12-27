@@ -71,7 +71,7 @@ $(function () {
         }
         
         $.ajax({
-            url: "http://localhost:8000/",
+            url: "/",
             dataType: 'json',
             success: onDataReceived,
             cache: false
