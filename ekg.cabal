@@ -18,7 +18,8 @@ data-files:          public/index.html, public/monitor.js, public/monitor.css,
                      public/blueprint/print.css public/blueprint/ie.css
 
 library
-  exposed-modules:     System.Remote.Monitoring
+  exposed-modules:     System.Remote.Counter
+                       System.Remote.Monitoring
 
   other-modules:       Paths_ekg
 
