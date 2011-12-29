@@ -71,7 +71,6 @@ $(function () {
         }
         
         $.ajax({
-            url: "/",
             dataType: 'json',
             success: onDataReceived,
             cache: false
