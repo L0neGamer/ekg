@@ -182,7 +182,15 @@ forkServer host port = do
 --
 -- To create and use a counter, simply call 'getCounter' to create it
 -- and then call e.g. 'Counter.inc' or 'Counter.add' to modify its
--- value.
+-- value. Example:
+--
+-- > main = do
+-- >     handle <- forkServer "localhost" 8000
+-- >     counter <- getCounter "iterations" handle
+-- >     let loop n = do
+-- >             inc counter
+-- >             loop
+-- >     loop
 
 -- | Return the counter associated with the given name.  Multiple
 -- calls to 'getCounter' with the same name will return the same
