@@ -245,7 +245,7 @@ monitor :: IORef Counters -> Snap ()
 monitor counters = do
     dataDir <- liftIO getDataDir
     route [ ("/", index counters) ]
-        <|> serveDirectory (dataDir </> "public")
+        <|> serveDirectory (dataDir </> "assets")
 
 index :: IORef Counters -> Snap ()
 index counters = do

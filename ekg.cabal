@@ -13,9 +13,9 @@ maintainer:          johan.tibell@gmail.com
 category:            System, Network
 build-type:          Simple
 cabal-version:       >=1.6
-data-files:          public/index.html public/monitor.js public/monitor.css
-                     public/jquery.flot.min.js public/blueprint/screen.css
-                     public/blueprint/print.css public/blueprint/ie.css
+data-files:          assets/index.html assets/monitor.js assets/monitor.css
+                     assets/jquery.flot.min.js assets/blueprint/screen.css
+                     assets/blueprint/print.css assets/blueprint/ie.css
                      examples/Basic.hs
 
 library
