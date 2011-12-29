@@ -1,19 +1,18 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
--- | Allows for remote monitoring of a running process over HTTP.
---
--- This module can be used to run an HTTP server that replies to HTTP
+-- | This module provides remote monitoring of a running process over
+-- HTTP.  It can be used to run an HTTP server that replies to
 -- requests with either an HTML page or a JSON object.  The former can
--- be used by a human to get an overview of a program's GC stats and
--- the latter can be used be automated tools.
+-- be used by a human, to get an overview of a program's stats, and
+-- the latter can be used be automated monitoring tools.
 --
--- Typical usage is to start the monitor server on program startup
+-- Typical usage is to start the monitoring server on program startup
 --
 -- > main = do
 -- >     forkServer "localhost" 8000
 -- >     ...
 --
 -- and then periodically check the stats using a web browser or a
--- command line tool like curl
+-- command line tool (e.g. curl)
 --
 -- > $ curl -H "Accept: application/json" http://localhost:8000/
 module System.Remote.Monitoring
@@ -21,15 +20,15 @@ module System.Remote.Monitoring
       -- * Required configuration
       -- $configuration
 
-      -- * JSON API
+      -- * REST API
       -- $api
 
-      -- * The monitor server
+      -- * The monitoring server
       Server
     , serverThreadId
     , forkServer
 
-      -- * User defined counters
+      -- * User-defined counters
       -- $counters
     , getCounter
     ) where
@@ -63,9 +62,9 @@ import qualified System.Remote.Counter.Internal as Counter
 
 -- $configuration
 --
--- To use this module you must first enable GC stats collection for
--- your program.  To enable GC stats collection, either run your
--- program with
+-- To use this module you must first enable GC statistics collection
+-- for your program.  To enable GC statistics collection, either run
+-- your program with
 --
 -- > +RTS -T
 --
@@ -81,7 +80,9 @@ import qualified System.Remote.Counter.Internal as Counter
 -- The HTTP server replies to GET requests to the host and port passed
 -- to 'forkServer'.  To get a JSON formatted response, the client must
 -- set the Accept header to \"application\/json\".  The server returns
--- a JSON object with the following members:
+-- a JSON object with one attribute per user-defined counter (created
+-- using 'getCounter').  In addition, the object includes the
+-- following attributes:
 --
 -- [@bytes_allocated@] Total number of bytes allocated
 --
@@ -132,13 +133,13 @@ import qualified System.Remote.Counter.Internal as Counter
 -- (set by the RTS flag @-N@) for a maximally parallel run.
 
 ------------------------------------------------------------------------
--- * The monitor server
+-- * The monitoring server
 
--- Map of user defined counters.
+-- Map of user-defined counters.
 type Counters = M.HashMap T.Text Counter
 
--- | A handle that can be used to control the monitor server.  Created
--- by 'forkServer'.
+-- | A handle that can be used to control the monitoring server.
+-- Created by 'forkServer'.
 data Server = Server {
       threadId :: {-# UNPACK #-} !ThreadId
     , userCounters :: !(IORef Counters)
@@ -171,15 +172,15 @@ forkServer host port = do
                Config.defaultConfig
 
 ------------------------------------------------------------------------
--- * User defined counters
+-- * User-defined counters
 
 -- $counters
--- The monitor server can store and serve user defined integer-valued
--- counters.  Each counter is associated with a name, which will be
--- used when the counter is displayed in the UI or returned as part of
--- the JSON API.  It's recommended to group related counters by
--- prefixing their name with a dot-separated namespace
--- (e.g. \"mygroup.mycounter\".)
+-- The monitoring server can store and serve user-defined
+-- integer-valued counters.  Each counter is associated with a name,
+-- which will be used when the counter is displayed in the UI or
+-- returned as part of the JSON API.  It's recommended to group
+-- related counters by prefixing their name with a dot-separated
+-- namespace (e.g. \"mygroup.mycounter\".)
 --
 -- To create and use a counter, simply call 'getCounter' to create it
 -- and then call e.g. 'Counter.inc' or 'Counter.add' to modify its
@@ -193,12 +194,13 @@ forkServer host port = do
 -- >             loop
 -- >     loop
 
--- | Return the counter associated with the given name.  Multiple
--- calls to 'getCounter' with the same name will return the same
--- counter.  The first time 'getCounter' is called for a given name, a
--- zero initialized counter will be returned.
+-- | Return the counter associated with the given name and server.
+-- Multiple calls to 'getCounter' with the same arguments will return
+-- the same counter.  The first time 'getCounter' is called for a
+-- given name and server, a new, zero-initialized counter will be
+-- returned.
 getCounter :: T.Text  -- ^ Counter name
-           -> Server  -- ^ Server to serve counters
+           -> Server  -- ^ Server that will serve the counter
            -> IO Counter
 getCounter name server = do
     emptyCounter <- Counter.new

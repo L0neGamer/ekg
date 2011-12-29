@@ -8,7 +8,7 @@ module System.Remote.Counter.Internal
 import Data.IORef (IORef, newIORef, readIORef)
 import Prelude hiding (read)
 
--- | An integer-valued counter.
+-- | An mutable, integer-valued counter.
 newtype Counter = C { unC :: IORef Int }
 
 -- | Create a new, zero initialized, counter.
