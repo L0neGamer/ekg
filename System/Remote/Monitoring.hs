@@ -23,7 +23,9 @@ module System.Remote.Monitoring
 
       -- * JSON API
       -- $api
-      forkServer
+      Server
+    , serverThreadId
+    , forkServer
     ) where
 
 import Control.Applicative ((<$>), (<|>))
@@ -116,6 +118,16 @@ import System.FilePath ((</>))
 -- a maximally sequential run and approaches the number of threads
 -- (set by the RTS flag @-N@) for a maximally parallel run.
 
+-- | A handle that can be used to control the monitor server.
+data Server = Server {
+      threadId :: {-# UNPACK #-} !ThreadId
+    }
+
+-- | The thread ID of the server.  You can kill the server by killing
+-- this thread (i.e. by throwing it an asynchronous exception.)
+serverThreadId :: Server -> ThreadId
+serverThreadId = threadId
+
 -- | Start an HTTP server in a new thread.  The server replies to GET
 -- requests to the given host and port.  The host argument can be
 -- either a numeric network address (dotted quad for IPv4,
@@ -123,13 +135,12 @@ import System.FilePath ((</>))
 -- The client can set the desired response format (i.e. Content-Type)
 -- by setting the Accept header.  At the moment two response formats
 -- are available: \"application\/json\" and \"text\/html\".
---
--- You can kill the server by killing the thread (i.e. by throwing it
--- an asynchronous exception.)
 forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> Int           -- ^ Port to listen on (e.g. 8000)
-           -> IO ThreadId
-forkServer host port = forkIO $ httpServe conf monitor
+           -> IO Server
+forkServer host port = do
+    tid <- forkIO $ httpServe conf monitor
+    return $! Server tid
   where conf = Config.setErrorLog Config.ConfigNoLog $
                Config.setAccessLog Config.ConfigNoLog $
                Config.setPort port $
