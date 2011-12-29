@@ -13,9 +13,10 @@ maintainer:          johan.tibell@gmail.com
 category:            System, Network
 build-type:          Simple
 cabal-version:       >=1.6
-data-files:          public/index.html, public/monitor.js, public/monitor.css,
+data-files:          public/index.html public/monitor.js public/monitor.css
                      public/jquery.flot.min.js public/blueprint/screen.css
                      public/blueprint/print.css public/blueprint/ie.css
+                     examples/Basic.hs
 
 library
   exposed-modules:     System.Remote.Counter
