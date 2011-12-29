@@ -163,7 +163,8 @@ forkServer host port = do
     counters <- newIORef M.empty
     tid <- forkIO $ httpServe conf (monitor counters)
     return $! Server tid counters
-  where conf = Config.setErrorLog Config.ConfigNoLog $
+  where conf = Config.setVerbose False $
+               Config.setErrorLog Config.ConfigNoLog $
                Config.setAccessLog Config.ConfigNoLog $
                Config.setPort port $
                Config.setHostname host $
