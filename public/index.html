@@ -38,39 +38,48 @@
         <h3>Productivity</h3>
         <div id="productivity-plot" class="plot"></div>
       </div>
-      
-      <table class="span-8 last">
-        <tbody>
-          <tr>
-            <td class="span-5">Maximum residency</td>
-            <td id="max-bytes-used" class="span-3 value">0</td>
-          </tr>
-          <tr>
-            <td>Current residency</td>
-            <td id="current-bytes-used" class="value">0</td>
-          </tr>
-          <tr>
-            <td>Maximum slop</td>
-            <td id="max-bytes-slop" class="value">0</td>
-          </tr>
-          <tr>
-            <td>Current slop</td>
-            <td id="current-bytes-slop" class="value">0</td>
-          </tr>
-          <tr>
-            <td>Productivity (wall clock time)</td>
-            <td id="productivity-wall" class="value">0</td>
-          </tr>
-          <tr>
-            <td>Productivity (cpu time)</td>
-            <td id="productivity-cpu" class="value">0</td>
-          </tr>
-          <tr>
-            <td>Allocation rate</td>
-            <td id="allocation-rate" class="value">0</td>
-          </tr>
-        </tbody>
-      </table>
+
+      <div class="span-8 last">
+        <h3>GC Stats</h3>
+        <table>
+          <tbody>
+            <tr>
+              <td class="span-5">Maximum residency</td>
+              <td id="max-bytes-used" class="span-3 value">0</td>
+            </tr>
+            <tr>
+              <td>Current residency</td>
+              <td id="current-bytes-used" class="value">0</td>
+            </tr>
+            <tr>
+              <td>Maximum slop</td>
+              <td id="max-bytes-slop" class="value">0</td>
+            </tr>
+            <tr>
+              <td>Current slop</td>
+              <td id="current-bytes-slop" class="value">0</td>
+            </tr>
+            <tr>
+              <td>Productivity (wall clock time)</td>
+              <td id="productivity-wall" class="value">0</td>
+            </tr>
+            <tr>
+              <td>Productivity (cpu time)</td>
+              <td id="productivity-cpu" class="value">0</td>
+            </tr>
+            <tr>
+              <td>Allocation rate</td>
+              <td id="allocation-rate" class="value">0</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Counters</h3>
+        <table id="counter-table">
+          <tbody>
+          </tbody>
+        </table>
+      <div>
     </div>
 
     <script type="text/javascript" src="monitor.js"></script>

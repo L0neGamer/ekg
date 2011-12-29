@@ -132,6 +132,28 @@ $(function () {
         listeners.push(onDataReceived);
     }
 
+    function addDynamicCounters() {
+        var counters = {};
+        function onDataReceived(stats, time) {
+            $.each(stats, function(key, value) {
+                var elem;
+                if (key in counters) {
+                    elem = counters[key];
+                } else {
+                    // Add UI element
+                    $("#counter-table > tbody:last").append(
+                        '<tr><td>' + key + '</td><td class="value">N/A</td></tr>');
+                    elem = $("#counter-table > tbody > tr > td:last");
+                    counters[key] = elem;
+                }
+                if (!paused)
+                    elem.text(value);
+            });
+        }
+
+        listeners.push(onDataReceived);
+    }
+
     $(document).ready(function() {
         // Metrics
         var current_bytes_used = function(stats) { return stats.current_bytes_used };
@@ -181,5 +203,7 @@ $(function () {
         addCounter($("#productivity-wall"), productivity_wall_percent, formatPercent)
         addCounter($("#productivity-cpu"), productivity_cpu_percent, formatPercent)
         addCounter($("#allocation-rate"), allocation_rate, formatRate)
+
+        addDynamicCounters();
     });
 });
