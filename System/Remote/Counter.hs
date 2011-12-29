@@ -1,7 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
+-- | Mutable integer-valued counters.
 module System.Remote.Counter
     (
-      new
+      Counter
     , inc
     , dec
     , add
@@ -9,33 +10,35 @@ module System.Remote.Counter
     , set
     ) where
 
-import Data.IORef
+import Data.IORef (atomicModifyIORef)
 import Prelude hiding (subtract)
 
-newtype Counter = C (IORef Int)
+import System.Remote.Counter.Internal
 
-new :: IO Counter
-new = undefined
-
+-- | Increase the counter by one.
 inc :: Counter -> IO ()
 inc (C ref) = do
     !_ <- atomicModifyIORef ref $ \ n -> let n' = n + 1 in (n', n')
     return ()
 
+-- | Decrease the counter by one.
 dec :: Counter -> IO ()
 dec (C ref) = do
     !_ <- atomicModifyIORef ref $ \ n -> let n' = n - 1 in (n', n')
     return ()
 
+-- | Increase the counter by the given amount.
 add :: Counter -> Int -> IO ()
 add (C ref) i = do
     !_ <- atomicModifyIORef ref $ \ n -> let n' = n + i in (n', n')
     return ()
 
+-- | Decrease the counter by the given amount.
 subtract :: Counter -> Int -> IO ()
 subtract (C ref) i = do
     !_ <- atomicModifyIORef ref $ \ n -> let n' = n - i in (n', n')
     return ()
 
+-- | Set the counter to the given value.
 set :: Counter -> Int -> IO ()
 set (C ref) !i = atomicModifyIORef ref $ \ _ -> (i, ())

@@ -22,6 +22,7 @@ library
                        System.Remote.Monitoring
 
   other-modules:       Paths_ekg
+                       System.Remote.Counter.Internal
 
   build-depends:       aeson < 0.6,
                        base >= 4.5 && < 5,
@@ -29,7 +30,9 @@ library
                        filepath < 1.4,
                        snap-core < 0.8,
                        snap-server < 0.8,
-                       transformers < 0.3
+                       text < 0.12,
+                       transformers < 0.3,
+                       unordered-containers < 0.2
   ghc-options:         -Wall
 
 source-repository head
