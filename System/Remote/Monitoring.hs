@@ -51,8 +51,8 @@ import qualified Data.Text as T
 import Data.Word (Word8)
 import qualified GHC.Stats as Stats
 import Paths_ekg (getDataDir)
-import Snap.Core (Request, Snap, getHeaders, getRequest, modifyResponse, pass,
-                  route, setContentType, writeLBS)
+import Snap.Core (Request, Snap, getHeaders, getRequest, method, Method(GET),
+                  modifyResponse, pass, route, setContentType, writeLBS)
 import Snap.Http.Server (httpServe)
 import qualified Snap.Http.Server.Config as Config
 import Snap.Util.FileServe (serveDirectory)
@@ -246,7 +246,7 @@ instance A.ToJSON Stats where
 monitor :: IORef Counters -> Snap ()
 monitor counters = do
     dataDir <- liftIO getDataDir
-    route [ ("/", index counters) ]
+    route [ ("/", method GET (index counters)) ]
         <|> serveDirectory (dataDir </> "assets")
 
 index :: IORef Counters -> Snap ()
