@@ -132,18 +132,18 @@ $(function () {
         listeners.push(onDataReceived);
     }
 
-    function addDynamicCounters() {
+    function addDynamicCounters(table, fn) {
         var counters = {};
         function onDataReceived(stats, time) {
-            $.each(stats, function(key, value) {
+            $.each(fn(stats), function(key, value) {
                 var elem;
                 if (key in counters) {
                     elem = counters[key];
                 } else {
                     // Add UI element
-                    $("#counter-table > tbody:last").append(
+                    table.find("tbody:last").append(
                         '<tr><td>' + key + '</td><td class="value">N/A</td></tr>');
-                    elem = $("#counter-table > tbody > tr > td:last");
+                    elem = table.find("tbody > tr > td:last");
                     counters[key] = elem;
                 }
                 if (!paused)
@@ -156,30 +156,41 @@ $(function () {
 
     $(document).ready(function() {
         // Metrics
-        var current_bytes_used = function(stats) { return stats.current_bytes_used };
-        var max_bytes_used = function(stats) { return stats.max_bytes_used };
-        var max_bytes_slop = function(stats) { return stats.max_bytes_slop };
-        var current_bytes_slop = function(stats) { return stats.current_bytes_slop };
+        var current_bytes_used = function(stats) {
+            return stats.gauges.current_bytes_used;
+        };
+        var max_bytes_used = function(stats) {
+            return stats.gauges.max_bytes_used;
+        };
+        var max_bytes_slop = function(stats) {
+            return stats.gauges.max_bytes_slop;
+        };
+        var current_bytes_slop = function(stats) {
+            return stats.gauges.current_bytes_slop;
+        };
         var productivity_wall_percent = function(stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            var mutator_seconds = stats.mutator_wall_seconds -
-                prev_stats.mutator_wall_seconds;
-            var gc_seconds = stats.gc_wall_seconds - prev_stats.gc_wall_seconds;
+            var mutator_seconds = stats.counters.mutator_wall_seconds -
+                prev_stats.counters.mutator_wall_seconds;
+            var gc_seconds = stats.counters.gc_wall_seconds -
+                prev_stats.counters.gc_wall_seconds;
             return 100 * mutator_seconds / (mutator_seconds + gc_seconds);
         }
         var productivity_cpu_percent = function(stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            var mutator_seconds = stats.mutator_cpu_seconds -
-                prev_stats.mutator_cpu_seconds;
-            var gc_seconds = stats.gc_cpu_seconds - prev_stats.gc_cpu_seconds;
+            var mutator_seconds = stats.counters.mutator_cpu_seconds -
+                prev_stats.counters.mutator_cpu_seconds;
+            var gc_seconds = stats.counters.gc_cpu_seconds -
+                prev_stats.counters.gc_cpu_seconds;
             return 100 * mutator_seconds / (mutator_seconds + gc_seconds);
         }
         var allocation_rate = function(stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            return 1000 * (stats.bytes_allocated -  prev_stats.bytes_allocated) /
+            return 1000 * (stats.counters.bytes_allocated -
+                           prev_stats.counters.bytes_allocated) /
                 (time - prev_time);
         }
 
@@ -204,6 +215,11 @@ $(function () {
         addCounter($("#productivity-cpu"), productivity_cpu_percent, formatPercent)
         addCounter($("#allocation-rate"), allocation_rate, formatRate)
 
-        addDynamicCounters();
+        addDynamicCounters($("#counter-table"), function(stats) {
+            return stats.counters;
+        });
+        addDynamicCounters($("#gauge-table"), function(stats) {
+            return stats.gauges;
+        });
     });
 });

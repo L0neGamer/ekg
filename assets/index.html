@@ -40,11 +40,17 @@
       </div>
 
       <div class="span-8 last">
-        <h3>GC Stats</h3>
+        <h3>GC and memory statistics</h3>
         <table>
+          <thead>
+            <tr>
+              <th class="span-5">Statistic</th>
+              <th class="span-3 last">Value</th>
+            </tr>
+          </thead>
           <tbody>
             <tr>
-              <td class="span-5">Maximum residency</td>
+              <td>Maximum residency</td>
               <td id="max-bytes-used" class="span-3 value">0</td>
             </tr>
             <tr>
@@ -78,8 +84,20 @@
         <table id="counter-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Value</th>
+              <th class="span-5">Name</th>
+              <th class="span-3 last">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+
+        <h3>Gauges</h3>
+        <table id="gauge-table">
+          <thead>
+            <tr>
+              <th class="span-5">Name</th>
+              <th class="span-3 last">Value</th>
             </tr>
           </thead>
           <tbody>

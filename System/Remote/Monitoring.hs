@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE ExistentialQuantification, OverloadedStrings, RecordWildCards #-}
 -- | This module provides remote monitoring of a running process over
 -- HTTP.  It can be used to run an HTTP server that provides both a
 -- web-based user interface and a machine-readable API (e.g. JSON).
@@ -277,11 +277,22 @@ getGauge name server = getRef name (userGauges server)
 -- defined counters).
 data Stats = Stats
     !Stats.GCStats    -- GC statistics
-    ![(T.Text, Int)]  -- Counters
-    ![(T.Text, Int)]  -- Gauges
+    ![(T.Text, Json)]  -- Counters
+    ![(T.Text, Json)]  -- Gauges
 
 instance A.ToJSON Stats where
-    toJSON (Stats (Stats.GCStats {..}) counters gauges) = A.object $
+    toJSON (Stats gcStats@(Stats.GCStats {..}) counters gauges) = A.object $
+        [ "counters" .= Assocs (gcCounters ++ counters)
+        , "gauges"   .= Assocs (gcGauges ++ gauges)
+        ]
+      where
+        (gcCounters, gcGauges) = partitionGcStats gcStats
+
+-- | 'Stats' encoded as a flattened JSON object.
+newtype Combined = Combined Stats
+
+instance A.ToJSON Combined where
+    toJSON (Combined (Stats (Stats.GCStats {..}) counters gauges)) = A.object $
         [ "bytes_allocated"          .= bytesAllocated
         , "num_gcs"                  .= numGcs
         , "max_bytes_used"           .= maxBytesUsed
@@ -303,8 +314,8 @@ instance A.ToJSON Stats where
         ] ++ map (uncurry (.=)) counters ++
         map (uncurry (.=)) gauges
 
--- | A list of string keys and integer values.
-newtype Assocs = Assocs [(T.Text, Int)]
+-- | A list of string keys and JSON-encodable values.
+newtype Assocs = Assocs [(T.Text, Json)]
 
 instance A.ToJSON Assocs where
     toJSON (Assocs xs) = A.object $ map (uncurry (.=)) xs
@@ -319,6 +330,8 @@ monitor counters gauges = do
     route [
           ("", method GET (format "application/json"
                            (serveAll counters gauges)))
+        , ("combined", method GET (format "application/json"
+                                   (serveCombined counters gauges)))
         , ("counters", method GET (format "application/json"
                                    (serveMany counters)))
         , ("counters/:name", method GET (format "text/plain"
@@ -346,14 +359,15 @@ format fmt action = do
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: Ref r => IORef (M.HashMap T.Text r) -> IO [(T.Text, Int)]
+readAllRefs :: Ref r => IORef (M.HashMap T.Text r) -> IO [(T.Text, Json)]
 readAllRefs mapRef = do
     m <- readIORef mapRef
     forM (M.toList m) $ \ (name, ref) -> do
         val <- read ref
-        return (name, val)
+        return (name, Json val)
 {-# INLINABLE readAllRefs #-}
 
+-- | Serve a collection of counters or gauges, as a JSON object.
 serveMany :: Ref r => IORef (M.HashMap T.Text r) -> Snap ()
 serveMany mapRef = do
     list <- liftIO $ readAllRefs mapRef
@@ -361,7 +375,8 @@ serveMany mapRef = do
     writeLBS $ A.encode $ A.toJSON $ Assocs list
 {-# INLINABLE serveMany #-}
 
--- | Serve all counters, as a JSON object.
+-- | Serve all counter and gauges, built-in or not, as a nested JSON
+-- object.
 serveAll :: IORef Counters -> IORef Gauges -> Snap ()
 serveAll counters gauges = do
     req <- getRequest
@@ -374,6 +389,17 @@ serveAll counters gauges = do
     counterList <- liftIO $ readAllRefs counters
     gaugeList <- liftIO $ readAllRefs gauges
     writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList
+
+-- | Serve all counters and gauges, built-in or not, as a flattened
+-- JSON object.
+serveCombined :: IORef Counters -> IORef Gauges -> Snap ()
+serveCombined counters gauges = do
+    modifyResponse $ setContentType "application/json"
+    gcStats <- liftIO Stats.getGCStats
+    counterList <- liftIO $ readAllRefs counters
+    gaugeList <- liftIO $ readAllRefs gauges
+    writeLBS $ A.encode $ A.toJSON $ Combined $
+        Stats gcStats counterList gaugeList
 
 -- | Serve a single counter, as plain text.
 serveOne :: Ref r => IORef (M.HashMap T.Text r) -> Snap ()
@@ -424,6 +450,40 @@ builtinCounters = Map.fromList [
     , ("par_avg_bytes_copied"     , show . Stats.parAvgBytesCopied)
     , ("par_max_bytes_copied"     , show . Stats.parMaxBytesCopied)
     ]
+
+-- Existential wrapper used for OO-style polymorphism.
+data Json = forall a. A.ToJSON a => Json a
+
+instance A.ToJSON Json where
+    toJSON (Json x) = A.toJSON x
+
+-- | Partition GC statistics into counters and gauges.
+partitionGcStats :: Stats.GCStats
+                 -> ([(T.Text, Json)], [(T.Text, Json)])
+partitionGcStats (Stats.GCStats {..}) = (counters, gauges)
+  where
+    counters = [
+          ("bytes_allocated"          , Json bytesAllocated)
+        , ("num_gcs"                  , Json numGcs)
+        , ("num_bytes_usage_samples"  , Json numByteUsageSamples)
+        , ("cumulative_bytes_used"    , Json cumulativeBytesUsed)
+        , ("bytes_copied"             , Json bytesCopied)
+        , ("mutator_cpu_seconds"      , Json mutatorCpuSeconds)
+        , ("mutator_wall_seconds"     , Json mutatorWallSeconds)
+        , ("gc_cpu_seconds"           , Json gcCpuSeconds)
+        , ("gc_wall_seconds"          , Json gcWallSeconds)
+        , ("cpu_seconds"              , Json cpuSeconds)
+        , ("wall_seconds"             , Json wallSeconds)
+        ]
+    gauges = [
+          ("max_bytes_used"           , Json maxBytesUsed)
+        , ("current_bytes_used"       , Json currentBytesUsed)
+        , ("current_bytes_slop"       , Json currentBytesSlop)
+        , ("max_bytes_slop"           , Json maxBytesSlop)
+        , ("peak_megabytes_allocated" , Json peakMegabytesAllocated)
+        , ("par_avg_bytes_copied"     , Json parAvgBytesCopied)
+        , ("par_max_bytes_copied"     , Json parMaxBytesCopied)
+        ]
 
 ------------------------------------------------------------------------
 -- Utilities for working with accept headers
