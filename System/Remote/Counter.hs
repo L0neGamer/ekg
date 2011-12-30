@@ -9,6 +9,7 @@ module System.Remote.Counter
     , add
     , subtract
     , set
+    , modify
     ) where
 
 import Data.IORef (atomicModifyIORef)
@@ -43,3 +44,10 @@ subtract (C ref) i = do
 -- | Set the counter to the given value.
 set :: Counter -> Int -> IO ()
 set (C ref) !i = atomicModifyIORef ref $ \ _ -> (i, ())
+
+-- | Set the counter to the result of applying the given function to
+-- the value.
+modify :: (Int -> Int) -> Counter -> IO ()
+modify f (C ref) = do
+    !_ <- atomicModifyIORef ref $ \ i -> let i' = f i in (i', i')
+    return ()
