@@ -47,12 +47,16 @@ import Data.Function (on)
 import qualified Data.HashMap.Strict as M
 import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
 import qualified Data.List as List
+import qualified Data.Map as Map
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Data.Word (Word8)
 import qualified GHC.Stats as Stats
 import Paths_ekg (getDataDir)
-import Snap.Core (Request, Snap, getHeaders, getRequest, method, Method(GET),
-                  modifyResponse, pass, route, setContentType, writeLBS)
+import Snap.Core (Request, Snap, finishWith, getHeaders, getRequest,
+                  getResponse, method, Method(GET), modifyResponse, pass, route,
+                  rqParams, setContentType, setResponseStatus, writeBS,
+                  writeLBS)
 import Snap.Http.Server (httpServe)
 import qualified Snap.Http.Server.Config as Config
 import Snap.Util.FileServe (serveDirectory)
@@ -246,7 +250,7 @@ instance A.ToJSON Stats where
 monitor :: IORef Counters -> Snap ()
 monitor counters = do
     dataDir <- liftIO getDataDir
-    route [ ("/", method GET (index counters)) ]
+    route [ ("/:counter", method GET (index counters)) ]
         <|> serveDirectory (dataDir </> "assets")
 
 index :: IORef Counters -> Snap ()
@@ -254,15 +258,29 @@ index counters = do
     req <- getRequest
     let acceptHdr = maybe "application/json" (List.head . parseHttpAccept) $
                     getAcceptHeader req
-    if acceptHdr == "application/json"
-        then serveJson
-        else pass
+    case (acceptHdr, Map.lookup "counter" (rqParams req)) of
+        ("text/plain", Just [name])
+            | not (S.null name) -> serveOne (T.decodeUtf8 name)
+        ("application/json", Nothing) -> serveAll
+        _ -> pass
   where
-    serveJson = do
+    serveAll = do
         modifyResponse $ setContentType "application/json"
         gcStats <- liftIO Stats.getGCStats
         counterList <- liftIO readAllCounters
         writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList
+
+    serveOne name = do
+        modifyResponse $ setContentType "text/plain"
+        m <- liftIO $ readIORef counters
+        case M.lookup name m of
+            Nothing -> do
+                modifyResponse $ setResponseStatus 404 "Not Found"
+                r <- getResponse
+                finishWith r
+            Just counter -> do
+                val <- liftIO $ Counter.read counter
+                writeBS $ S8.pack $ show val
 
     getAcceptHeader :: Request -> Maybe S.ByteString
     getAcceptHeader req = S.intercalate "," <$> getHeaders "Accept" req
