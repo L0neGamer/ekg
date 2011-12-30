@@ -285,6 +285,9 @@ format fmt action = do
 serveAll :: IORef Counters -> Snap ()
 serveAll counters = do
     req <- getRequest
+    -- Workaround: Snap still matches requests to /foo to this handler
+    -- if the Accept header is "application/json", even though such
+    -- requests ought to go to the 'serveOne' handler.
     unless (S.null $ rqPathInfo req) pass
     modifyResponse $ setContentType "application/json"
     gcStats <- liftIO Stats.getGCStats
