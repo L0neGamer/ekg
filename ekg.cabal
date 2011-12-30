@@ -20,10 +20,12 @@ data-files:          assets/index.html assets/monitor.js assets/monitor.css
 
 library
   exposed-modules:     System.Remote.Counter
+                       System.Remote.Gauge
                        System.Remote.Monitoring
 
   other-modules:       Paths_ekg
                        System.Remote.Counter.Internal
+                       System.Remote.Gauge.Internal
 
   build-depends:       aeson < 0.6,
                        base >= 4.5 && < 5,
