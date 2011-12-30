@@ -154,7 +154,7 @@ $(function () {
         listeners.push(onDataReceived);
     }
 
-    $(document).ready(function() {
+    function initAll() {
         // Metrics
         var current_bytes_used = function(stats) {
             return stats.gauges.current_bytes_used;
@@ -221,5 +221,7 @@ $(function () {
         addDynamicCounters($("#gauge-table"), function(stats) {
             return stats.gauges;
         });
-    });
+    }
+
+    initAll();
 });
