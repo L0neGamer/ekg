@@ -137,6 +137,16 @@ import qualified System.Remote.Counter.Internal as Counter
 -- 'parAvgBytesCopied' divided by 'parMaxBytesCopied' approaches 1 for
 -- a maximally sequential run and approaches the number of threads
 -- (set by the RTS flag @-N@) for a maximally parallel run.
+--
+-- It's possible to retrieve individual counters by
+--
+--  * appending the counter name to the URL (e.g. \"/my_counter\"), and
+--
+--  * setting the Accept header to \"text\/plain\".
+--
+-- The reason that single counters cannot be returned as JSON is that
+-- JSON doesn't allow for certain values (e.g. integers) to occur at
+-- the top-level.
 
 ------------------------------------------------------------------------
 -- * The monitoring server
