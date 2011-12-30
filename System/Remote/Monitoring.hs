@@ -55,6 +55,7 @@ import qualified Data.Text.Encoding as T
 import Data.Word (Word8)
 import qualified GHC.Stats as Stats
 import Paths_ekg (getDataDir)
+import Prelude hiding (read)
 import Snap.Core (MonadSnap, Request, Snap, finishWith, getHeaders, getRequest,
                   getResponse, method, Method(GET), modifyResponse, pass, route,
                   rqParams, rqPathInfo, setContentType, setResponseStatus,
@@ -223,12 +224,15 @@ forkServer host port = do
 
 class Ref r where
     new :: IO r
+    read :: r -> IO Int
 
 instance Ref Counter where
     new = Counter.new
+    read = Counter.read
 
 instance Ref Gauge where
     new = Gauge.new
+    read = Gauge.read
 
 -- | Lookup a 'Ref' by name in the given map.  If no 'Ref' exists
 -- under the given name, create a new one, insert it into the map and
@@ -269,12 +273,15 @@ getGauge name server = getRef name (userGauges server)
 ------------------------------------------------------------------------
 -- * JSON serialization
 
--- All the stats exported by the server (i.e. GC stats plus user
+-- | All the stats exported by the server (i.e. GC stats plus user
 -- defined counters).
-data Stats = Stats !Stats.GCStats ![(T.Text, Int)]
+data Stats = Stats
+    !Stats.GCStats    -- GC statistics
+    ![(T.Text, Int)]  -- Counters
+    ![(T.Text, Int)]  -- Gauges
 
 instance A.ToJSON Stats where
-    toJSON (Stats (Stats.GCStats {..}) cs) = A.object $
+    toJSON (Stats (Stats.GCStats {..}) counters gauges) = A.object $
         [ "bytes_allocated"          .= bytesAllocated
         , "num_gcs"                  .= numGcs
         , "max_bytes_used"           .= maxBytesUsed
@@ -293,7 +300,14 @@ instance A.ToJSON Stats where
         , "wall_seconds"             .= wallSeconds
         , "par_avg_bytes_copied"     .= parAvgBytesCopied
         , "par_max_bytes_copied"     .= parMaxBytesCopied
-        ] ++ map (\ (k, v) -> k .= v) cs
+        ] ++ map (uncurry (.=)) counters ++
+        map (uncurry (.=)) gauges
+
+-- | A list of string keys and integer values.
+newtype Assocs = Assocs [(T.Text, Int)]
+
+instance A.ToJSON Assocs where
+    toJSON (Assocs xs) = A.object $ map (uncurry (.=)) xs
 
 ------------------------------------------------------------------------
 -- * HTTP request handler
@@ -303,10 +317,16 @@ monitor :: IORef Counters -> IORef Gauges -> Snap ()
 monitor counters gauges = do
     dataDir <- liftIO getDataDir
     route [
-          ("/", method GET (format "application/json"
-                            (serveAll counters gauges)))
-        , ("/:counter", method GET (format "text/plain"
-                                    (serveOne counters gauges)))
+          ("", method GET (format "application/json"
+                           (serveAll counters gauges)))
+        , ("counters", method GET (format "application/json"
+                                   (serveMany counters)))
+        , ("counters/:name", method GET (format "text/plain"
+                                         (serveOne counters)))
+        , ("gauges", method GET (format "application/json"
+                                 (serveMany gauges)))
+        , ("gauges/:name", method GET (format "text/plain"
+                                       (serveOne gauges)))
         ]
         <|> serveDirectory (dataDir </> "assets")
 
@@ -324,6 +344,23 @@ format fmt action = do
         Just hdr | hdr == fmt -> action
         _ -> pass
 
+-- | Get a snapshot of all values.  Note that we're not guaranteed to
+-- see a consistent snapshot of the whole map.
+readAllRefs :: Ref r => IORef (M.HashMap T.Text r) -> IO [(T.Text, Int)]
+readAllRefs mapRef = do
+    m <- readIORef mapRef
+    forM (M.toList m) $ \ (name, ref) -> do
+        val <- read ref
+        return (name, val)
+{-# INLINABLE readAllRefs #-}
+
+serveMany :: Ref r => IORef (M.HashMap T.Text r) -> Snap ()
+serveMany mapRef = do
+    list <- liftIO $ readAllRefs mapRef
+    modifyResponse $ setContentType "application/json"
+    writeLBS $ A.encode $ A.toJSON $ Assocs list
+{-# INLINABLE serveMany #-}
+
 -- | Serve all counters, as a JSON object.
 serveAll :: IORef Counters -> IORef Gauges -> Snap ()
 serveAll counters gauges = do
@@ -334,35 +371,26 @@ serveAll counters gauges = do
     unless (S.null $ rqPathInfo req) pass
     modifyResponse $ setContentType "application/json"
     gcStats <- liftIO Stats.getGCStats
-    counterList <- liftIO readAllCounters
-    writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList
-  where
-    -- Get a snapshot of all counter values.  Note that we're not
-    -- guaranteed to see a consistent snapshot if we consider more
-    -- than one counter at once.
-    readAllCounters :: IO [(T.Text, Int)]
-    readAllCounters = do
-        m <- readIORef counters
-        forM (M.toList m) $ \ (name, ref) -> do
-            val <- Counter.read ref
-            return (name, val)
+    counterList <- liftIO $ readAllRefs counters
+    gaugeList <- liftIO $ readAllRefs gauges
+    writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList
 
 -- | Serve a single counter, as plain text.
-serveOne :: IORef Counters -> IORef Gauges -> Snap ()
-serveOne counters gauges = do
+serveOne :: Ref r => IORef (M.HashMap T.Text r) -> Snap ()
+serveOne refs = do
     modifyResponse $ setContentType "text/plain"
-    m <- liftIO $ readIORef counters
+    m <- liftIO $ readIORef refs
     req <- getRequest
     let mname = T.decodeUtf8 <$> join
-                (listToMaybe <$> Map.lookup "counter" (rqParams req))
+                (listToMaybe <$> Map.lookup "name" (rqParams req))
     case mname of
         Nothing -> pass
         Just name -> case M.lookup name m of
             Just counter -> do
-                val <- liftIO $ Counter.read counter
+                val <- liftIO $ read counter
                 writeBS $ S8.pack $ show val
             Nothing ->
-                -- Try built-in (e.g. GC) counters
+                -- Try built-in (e.g. GC) refs
                 case Map.lookup name builtinCounters of
                     Just f -> do
                         gcStats <- liftIO Stats.getGCStats
@@ -371,6 +399,7 @@ serveOne counters gauges = do
                         modifyResponse $ setResponseStatus 404 "Not Found"
                         r <- getResponse
                         finishWith r
+{-# INLINABLE serveOne #-}
 
 -- | A list of all built-in (e.g. GC) counters, together with a
 -- pretty-printing function for each.
