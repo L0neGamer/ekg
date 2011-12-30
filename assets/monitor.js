@@ -53,6 +53,17 @@ $(function () {
         return formatSuffix(val, axis.tickDecimals);
     }
 
+    function suffixFormatterGeneric(val, axis) {
+        if (val >= 1000000000)
+            return (val / 1000000000).toFixed(axis.tickDecimals) + " G";
+        else if (val >= 1000000)
+            return (val / 1000000).toFixed(axis.tickDecimals) + " M";
+        else if (val >= 1000)
+            return (val / 1000).toFixed(axis.tickDecimals) + " k";
+        else
+            return val.toFixed(axis.tickDecimals);
+    }
+
     function rateFormatter(val, axis) {
         return formatRate(val, axis.tickDecimals);
     }
@@ -132,19 +143,36 @@ $(function () {
         listeners.push(onDataReceived);
     }
 
-    function addDynamicCounters(table, fn) {
+    function addDynamicCounters(table, group_fn, graph_fn, label_fn, formatter) {
         var counters = {};
         function onDataReceived(stats, time) {
-            $.each(fn(stats), function(key, value) {
+            $.each(group_fn(stats), function(key, value) {
                 var elem;
                 if (key in counters) {
                     elem = counters[key];
                 } else {
                     // Add UI element
                     table.find("tbody:last").append(
-                        '<tr><td>' + key + '</td><td class="value">N/A</td></tr>');
+                        '<tr><td>' + key +
+                            ' (<a href="#">graph</a>)</td><td class="value">N/A</td></tr>');
                     elem = table.find("tbody > tr > td:last");
                     counters[key] = elem;
+
+                    // Add UI element for adding graph
+                    function getStats(stats, time, prev_stats, prev_time) {
+                        return graph_fn(key, stats, time, prev_stats, prev_time);
+                    }
+
+                    var link = table.find("tbody > tr:last > td:first > a");
+                    link.click(function() {
+                        $("#plots:last").append(
+                            '<div class="plot-container"><h3>' + key +
+                                '</h3><div class="plot"></div></div>');
+                        var plot = $("#plots > .plot-container:last > div");
+                        addPlot(plot,
+                                [{ label: label_fn(key), fn: getStats }],
+                                { yaxis: { tickFormatter: suffixFormatterGeneric } });
+                    });
                 }
                 if (!paused)
                     elem.text(value);
@@ -217,9 +245,21 @@ $(function () {
 
         addDynamicCounters($("#counter-table"), function(stats) {
             return stats.counters;
+        }, function(key, stats, time, prev_stats, prev_time) {
+            if (prev_stats == undefined)
+                return null;
+            return 1000 * (stats.counters[key] - prev_stats.counters[key]) /
+                (time - prev_time);
+        }, function(label) {
+            return label + "/s";
         });
+
         addDynamicCounters($("#gauge-table"), function(stats) {
             return stats.gauges;
+        }, function(key, stats, time) {
+            return stats.gauges[key];
+        }, function(label) {
+            return label;
         });
     }
 
