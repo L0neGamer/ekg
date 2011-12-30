@@ -36,7 +36,7 @@ module System.Remote.Monitoring
 
 import Control.Applicative ((<$>), (<|>))
 import Control.Concurrent (ThreadId, forkIO)
-import Control.Monad (forM)
+import Control.Monad (forM, join, unless)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson.Encode as A
 import Data.Aeson.Types ((.=))
@@ -48,15 +48,16 @@ import qualified Data.HashMap.Strict as M
 import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import Data.Maybe (listToMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Word (Word8)
 import qualified GHC.Stats as Stats
 import Paths_ekg (getDataDir)
-import Snap.Core (Request, Snap, finishWith, getHeaders, getRequest,
+import Snap.Core (MonadSnap, Request, Snap, finishWith, getHeaders, getRequest,
                   getResponse, method, Method(GET), modifyResponse, pass, route,
-                  rqParams, setContentType, setResponseStatus, writeBS,
-                  writeLBS)
+                  rqParams, rqPathInfo, setContentType, setResponseStatus,
+                  writeBS, writeLBS)
 import Snap.Http.Server (httpServe)
 import qualified Snap.Http.Server.Config as Config
 import Snap.Util.FileServe (serveDirectory)
@@ -250,47 +251,94 @@ instance A.ToJSON Stats where
 monitor :: IORef Counters -> Snap ()
 monitor counters = do
     dataDir <- liftIO getDataDir
-    route [ ("/:counter", method GET (index counters)) ]
+    route [
+          ("/", method GET (format "application/json" (serveAll counters)))
+        , ("/:counter", method GET (format "text/plain" (serveOne counters)))
+        ]
         <|> serveDirectory (dataDir </> "assets")
 
-index :: IORef Counters -> Snap ()
-index counters = do
+-- | The Accept header of the request.
+acceptHeader :: Request -> Maybe S.ByteString
+acceptHeader req = S.intercalate "," <$> getHeaders "Accept" req
+
+-- | Runs a Snap monad action only if the request's Accept header
+-- matches the given MIME type.
+format :: MonadSnap m => S.ByteString -> m a -> m a
+format fmt action = do
     req <- getRequest
-    let acceptHdr = maybe "application/json" (List.head . parseHttpAccept) $
-                    getAcceptHeader req
-    case (acceptHdr, Map.lookup "counter" (rqParams req)) of
-        ("text/plain", Just [name])
-            | not (S.null name) -> serveOne (T.decodeUtf8 name)
-        ("application/json", Nothing) -> serveAll
+    let acceptHdr = (List.head . parseHttpAccept) <$> acceptHeader req
+    case acceptHdr of
+        Just hdr | hdr == fmt -> action
         _ -> pass
+
+-- | Serve all counters, as a JSON object.
+serveAll :: IORef Counters -> Snap ()
+serveAll counters = do
+    req <- getRequest
+    unless (S.null $ rqPathInfo req) pass
+    modifyResponse $ setContentType "application/json"
+    gcStats <- liftIO Stats.getGCStats
+    counterList <- liftIO readAllCounters
+    writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList
   where
-    serveAll = do
-        modifyResponse $ setContentType "application/json"
-        gcStats <- liftIO Stats.getGCStats
-        counterList <- liftIO readAllCounters
-        writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList
-
-    serveOne name = do
-        modifyResponse $ setContentType "text/plain"
-        m <- liftIO $ readIORef counters
-        case M.lookup name m of
-            Nothing -> do
-                modifyResponse $ setResponseStatus 404 "Not Found"
-                r <- getResponse
-                finishWith r
-            Just counter -> do
-                val <- liftIO $ Counter.read counter
-                writeBS $ S8.pack $ show val
-
-    getAcceptHeader :: Request -> Maybe S.ByteString
-    getAcceptHeader req = S.intercalate "," <$> getHeaders "Accept" req
-
+    -- Get a snapshot of all counter values.  Note that we're not
+    -- guaranteed to see a consistent snapshot if we consider more
+    -- than one counter at once.
     readAllCounters :: IO [(T.Text, Int)]
     readAllCounters = do
         m <- readIORef counters
         forM (M.toList m) $ \ (name, ref) -> do
             val <- Counter.read ref
             return (name, val)
+
+-- | Serve a single counter, as plain text.
+serveOne :: IORef Counters -> Snap ()
+serveOne counters = do
+    modifyResponse $ setContentType "text/plain"
+    m <- liftIO $ readIORef counters
+    req <- getRequest
+    let mname = T.decodeUtf8 <$> join
+                (listToMaybe <$> Map.lookup "counter" (rqParams req))
+    case mname of
+        Nothing -> pass
+        Just name -> case M.lookup name m of
+            Just counter -> do
+                val <- liftIO $ Counter.read counter
+                writeBS $ S8.pack $ show val
+            Nothing ->
+                -- Try built-in (e.g. GC) counters
+                case Map.lookup name builtinCounters of
+                    Just f -> do
+                        gcStats <- liftIO Stats.getGCStats
+                        writeBS $ S8.pack $ f gcStats
+                    Nothing -> do
+                        modifyResponse $ setResponseStatus 404 "Not Found"
+                        r <- getResponse
+                        finishWith r
+
+-- | A list of all built-in (e.g. GC) counters, together with a
+-- pretty-printing function for each.
+builtinCounters :: Map.Map T.Text (Stats.GCStats -> String)
+builtinCounters = Map.fromList [
+      ("bytes_allocated"          , show . Stats.bytesAllocated)
+    , ("num_gcs"                  , show . Stats.numGcs)
+    , ("max_bytes_used"           , show . Stats.maxBytesUsed)
+    , ("num_bytes_usage_samples"  , show . Stats.numByteUsageSamples)
+    , ("cumulative_bytes_used"    , show . Stats.cumulativeBytesUsed)
+    , ("bytes_copied"             , show . Stats.bytesCopied)
+    , ("current_bytes_used"       , show . Stats.currentBytesUsed)
+    , ("current_bytes_slop"       , show . Stats.currentBytesSlop)
+    , ("max_bytes_slop"           , show . Stats.maxBytesSlop)
+    , ("peak_megabytes_allocated" , show . Stats.peakMegabytesAllocated)
+    , ("mutator_cpu_seconds"      , show . Stats.mutatorCpuSeconds)
+    , ("mutator_wall_seconds"     , show . Stats.mutatorWallSeconds)
+    , ("gc_cpu_seconds"           , show . Stats.gcCpuSeconds)
+    , ("gc_wall_seconds"          , show . Stats.gcWallSeconds)
+    , ("cpu_seconds"              , show . Stats.cpuSeconds)
+    , ("wall_seconds"             , show . Stats.wallSeconds)
+    , ("par_avg_bytes_copied"     , show . Stats.parAvgBytesCopied)
+    , ("par_max_bytes_copied"     , show . Stats.parMaxBytesCopied)
+    ]
 
 ------------------------------------------------------------------------
 -- Utilities for working with accept headers
