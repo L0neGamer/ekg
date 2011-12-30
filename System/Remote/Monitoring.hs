@@ -30,7 +30,7 @@ module System.Remote.Monitoring
     , forkServer
 
       -- * User-defined counters and gauges
-      -- $counters
+      -- $userdefined
     , getCounter
     , getGauge
     ) where
@@ -198,11 +198,16 @@ forkServer host port = do
 ------------------------------------------------------------------------
 -- * User-defined counters and gauges
 
--- $counters
+-- $userdefined
 -- The monitoring server can store and serve user-defined,
 -- integer-valued counters and gauges.  Each counter or gauge is
 -- associated with a name, which is used when the counter or gauge is
 -- displayed in the UI or returned in a JSON object.
+--
+-- Even though it's technically possible to have a counter and a gauge
+-- with the same name, associated with the same server, it's not
+-- recommended as it might make it harder for clients to distinguish
+-- the two.
 --
 -- To create and use a counter, simply call 'getCounter' to create it
 -- and then call e.g. 'Counter.inc' or 'Counter.add' to modify its
