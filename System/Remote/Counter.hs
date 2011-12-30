@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 -- | This module defines a type for mutable, integer-valued counters.
+-- All operations on counters are thread-safe.
 module System.Remote.Counter
     (
       Counter

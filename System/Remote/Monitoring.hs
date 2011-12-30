@@ -1,11 +1,12 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 -- | This module provides remote monitoring of a running process over
--- HTTP.  It can be used to run an HTTP server that replies to
--- requests with either an HTML page or a JSON object.  The former can
--- be used by a human, to get an overview of a program's stats, and
--- the latter can be used be automated monitoring tools.
+-- HTTP.  It can be used to run an HTTP server that provides both a
+-- web-based user interface and a machine-readable API (e.g. JSON).
+-- The former can be used by a human to get an overview of what the
+-- program is doing and the latter can be used be automated monitoring
+-- tools.
 --
--- Typical usage is to start the monitoring server on program startup
+-- Typical usage is to start the monitoring server at program startup
 --
 -- > main = do
 -- >     forkServer "localhost" 8000
@@ -63,8 +64,8 @@ import qualified System.Remote.Counter.Internal as Counter
 -- $configuration
 --
 -- To use this module you must first enable GC statistics collection
--- for your program.  To enable GC statistics collection, either run
--- your program with
+-- in the run-time system.  To enable GC statistics collection, either
+-- run your program with
 --
 -- > +RTS -T
 --
@@ -76,13 +77,13 @@ import qualified System.Remote.Counter.Internal as Counter
 -- leave it enabled.
 
 -- $api
+-- To use the machine-readable REST API, send an GET request to the
+-- host and port passed to 'forkServer' and set the Accept header to
+-- \"application\/json\".
 --
--- The HTTP server replies to GET requests to the host and port passed
--- to 'forkServer'.  To get a JSON formatted response, the client must
--- set the Accept header to \"application\/json\".  The server returns
--- a JSON object with one attribute per user-defined counter (created
--- using 'getCounter').  In addition, the object includes the
--- following attributes:
+-- The server returns a JSON object with one attribute per
+-- user-defined counter (created using 'getCounter').  In addition,
+-- the object includes the following attributes:
 --
 -- [@bytes_allocated@] Total number of bytes allocated
 --
@@ -154,9 +155,9 @@ serverThreadId = threadId
 -- requests to the given host and port.  The host argument can be
 -- either a numeric network address (dotted quad for IPv4,
 -- colon-separated hex for IPv6) or a hostname (e.g. \"localhost\").
--- The client can set the desired response format (i.e. Content-Type)
--- by setting the Accept header.  At the moment two response formats
--- are available: \"application\/json\" and \"text\/html\".
+-- The client can control the Content-Type used in responses by
+-- setting the Accept header.  At the moment two content types are
+-- available: \"application\/json\" and \"text\/html\".
 forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> Int           -- ^ Port to listen on (e.g. 8000)
            -> IO Server
@@ -175,12 +176,10 @@ forkServer host port = do
 -- * User-defined counters
 
 -- $counters
--- The monitoring server can store and serve user-defined
+-- The monitoring server can store and serve user-defined,
 -- integer-valued counters.  Each counter is associated with a name,
--- which will be used when the counter is displayed in the UI or
--- returned as part of the JSON API.  It's recommended to group
--- related counters by prefixing their name with a dot-separated
--- namespace (e.g. \"mygroup.mycounter\".)
+-- which is used when the counter is displayed in the UI or returned
+-- in a JSON object.
 --
 -- To create and use a counter, simply call 'getCounter' to create it
 -- and then call e.g. 'Counter.inc' or 'Counter.add' to modify its
