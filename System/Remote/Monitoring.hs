@@ -29,9 +29,10 @@ module System.Remote.Monitoring
     , serverThreadId
     , forkServer
 
-      -- * User-defined counters
+      -- * User-defined counters and gauges
       -- $counters
     , getCounter
+    , getGauge
     ) where
 
 import Control.Applicative ((<$>), (<|>))
@@ -65,6 +66,8 @@ import System.FilePath ((</>))
 
 import System.Remote.Counter (Counter)
 import qualified System.Remote.Counter.Internal as Counter
+import System.Remote.Gauge (Gauge)
+import qualified System.Remote.Gauge.Internal as Gauge
 
 -- $configuration
 --
@@ -154,11 +157,15 @@ import qualified System.Remote.Counter.Internal as Counter
 -- Map of user-defined counters.
 type Counters = M.HashMap T.Text Counter
 
+-- Map of user-defined gauges.
+type Gauges = M.HashMap T.Text Gauge
+
 -- | A handle that can be used to control the monitoring server.
 -- Created by 'forkServer'.
 data Server = Server {
       threadId :: {-# UNPACK #-} !ThreadId
     , userCounters :: !(IORef Counters)
+    , userGauges :: !(IORef Gauges)
     }
 
 -- | The thread ID of the server.  You can kill the server by killing
@@ -178,8 +185,9 @@ forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> IO Server
 forkServer host port = do
     counters <- newIORef M.empty
-    tid <- forkIO $ httpServe conf (monitor counters)
-    return $! Server tid counters
+    gauges <- newIORef M.empty
+    tid <- forkIO $ httpServe conf (monitor counters gauges)
+    return $! Server tid counters gauges
   where conf = Config.setVerbose False $
                Config.setErrorLog Config.ConfigNoLog $
                Config.setAccessLog Config.ConfigNoLog $
@@ -188,13 +196,13 @@ forkServer host port = do
                Config.defaultConfig
 
 ------------------------------------------------------------------------
--- * User-defined counters
+-- * User-defined counters and gauges
 
 -- $counters
 -- The monitoring server can store and serve user-defined,
--- integer-valued counters.  Each counter is associated with a name,
--- which is used when the counter is displayed in the UI or returned
--- in a JSON object.
+-- integer-valued counters and gauges.  Each counter or gauge is
+-- associated with a name, which is used when the counter or gauge is
+-- displayed in the UI or returned in a JSON object.
 --
 -- To create and use a counter, simply call 'getCounter' to create it
 -- and then call e.g. 'Counter.inc' or 'Counter.add' to modify its
@@ -208,6 +216,32 @@ forkServer host port = do
 -- >             loop
 -- >     loop
 
+class Ref r where
+    new :: IO r
+
+instance Ref Counter where
+    new = Counter.new
+
+instance Ref Gauge where
+    new = Gauge.new
+
+-- | Lookup a 'Ref' by name in the given map.  If no 'Ref' exists
+-- under the given name, create a new one, insert it into the map and
+-- return it.
+getRef :: Ref r
+       => T.Text                      -- ^ 'Ref' name
+       -> IORef (M.HashMap T.Text r)  -- ^ Server that will serve the 'Ref'
+       -> IO r
+getRef name mapRef = do
+    empty <- new
+    ref <- atomicModifyIORef mapRef $ \ m ->
+        case M.lookup name m of
+            Nothing  -> let m' = M.insert name empty m
+                        in (m', empty)
+            Just ref -> (m, ref)
+    return ref
+{-# INLINABLE getRef #-}
+
 -- | Return the counter associated with the given name and server.
 -- Multiple calls to 'getCounter' with the same arguments will return
 -- the same counter.  The first time 'getCounter' is called for a
@@ -216,14 +250,16 @@ forkServer host port = do
 getCounter :: T.Text  -- ^ Counter name
            -> Server  -- ^ Server that will serve the counter
            -> IO Counter
-getCounter name server = do
-    emptyCounter <- Counter.new
-    counter <- atomicModifyIORef (userCounters server) $ \ m ->
-        case M.lookup name m of
-            Nothing      -> let m' = M.insert name emptyCounter m
-                            in (m', emptyCounter)
-            Just counter -> (m, counter)
-    return counter
+getCounter name server = getRef name (userCounters server)
+
+-- | Return the gauge associated with the given name and server.
+-- Multiple calls to 'getGauge' with the same arguments will return
+-- the same gauge.  The first time 'getGauge' is called for a given
+-- name and server, a new, zero-initialized gauge will be returned.
+getGauge :: T.Text  -- ^ Gauge name
+         -> Server  -- ^ Server that will serve the gauge
+         -> IO Gauge
+getGauge name server = getRef name (userGauges server)
 
 ------------------------------------------------------------------------
 -- * JSON serialization
@@ -258,12 +294,14 @@ instance A.ToJSON Stats where
 -- * HTTP request handler
 
 -- | A handler that can be installed into an existing Snap application.
-monitor :: IORef Counters -> Snap ()
-monitor counters = do
+monitor :: IORef Counters -> IORef Gauges -> Snap ()
+monitor counters gauges = do
     dataDir <- liftIO getDataDir
     route [
-          ("/", method GET (format "application/json" (serveAll counters)))
-        , ("/:counter", method GET (format "text/plain" (serveOne counters)))
+          ("/", method GET (format "application/json"
+                            (serveAll counters gauges)))
+        , ("/:counter", method GET (format "text/plain"
+                                    (serveOne counters gauges)))
         ]
         <|> serveDirectory (dataDir </> "assets")
 
@@ -282,8 +320,8 @@ format fmt action = do
         _ -> pass
 
 -- | Serve all counters, as a JSON object.
-serveAll :: IORef Counters -> Snap ()
-serveAll counters = do
+serveAll :: IORef Counters -> IORef Gauges -> Snap ()
+serveAll counters gauges = do
     req <- getRequest
     -- Workaround: Snap still matches requests to /foo to this handler
     -- if the Accept header is "application/json", even though such
@@ -305,8 +343,8 @@ serveAll counters = do
             return (name, val)
 
 -- | Serve a single counter, as plain text.
-serveOne :: IORef Counters -> Snap ()
-serveOne counters = do
+serveOne :: IORef Counters -> IORef Gauges -> Snap ()
+serveOne counters gauges = do
     modifyResponse $ setContentType "text/plain"
     m <- liftIO $ readIORef counters
     req <- getRequest
