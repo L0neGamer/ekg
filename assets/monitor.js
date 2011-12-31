@@ -167,7 +167,7 @@ $(document).ready(function () {
         subscribe(onDataReceived);
     }
 
-    function addDynamicPlot(key, graph_fn, label_fn) {
+    function addDynamicPlot(key, button, graph_fn, label_fn) {
         function getStats(stats, time, prev_stats, prev_time) {
             return graph_fn(key, stats, time, prev_stats, prev_time);
         }
@@ -186,6 +186,7 @@ $(document).ready(function () {
         closeButton.hide();
         closeButton.click(function () {
             plotContainer.remove();
+            button.show();
             unsubscribe(observer);
         });
 
@@ -210,14 +211,15 @@ $(document).ready(function () {
                     // Add UI element
                     table.find("tbody:last").append(
                         '<tr><td>' + key +
-                            ' <img src="graph-icon.png" class="graph-button" alt="Add graph"></td>' +
+                            ' <img src="graph-icon.png" class="graph-button"' +
+                            ' alt="Add graph" title="Add graph"></td>' +
                             '<td class="value">N/A</td></tr>');
                     elem = table.find("tbody > tr > td:last");
                     counters[key] = elem;
 
                     var button = table.find("tbody > tr:last > td:first > img");
                     button.click(function () {
-                        addDynamicPlot(key, graph_fn, label_fn);
+                        addDynamicPlot(key, button, graph_fn, label_fn);
                         $(this).hide();
                     });
                 }
