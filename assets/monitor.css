@@ -56,6 +56,11 @@
     margin-bottom: 1.5em;
 }
 
+.close-button {
+    float: right;
+    cursor: hand;
+}
+
 /**
  * Table
  */

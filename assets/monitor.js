@@ -143,7 +143,39 @@ $(function () {
         listeners.push(onDataReceived);
     }
 
-    function addDynamicCounters(table, group_fn, graph_fn, label_fn, formatter) {
+    function addDynamicPlot(key, graph_fn, label_fn) {
+        function getStats(stats, time, prev_stats, prev_time) {
+            return graph_fn(key, stats, time, prev_stats, prev_time);
+        }
+
+        $("#plots:last").append(
+            '<div id="' + key + '-plot" class="plot-container">' +
+                '<img src="dialog_close.png" class="close-button"><h3>' + key +
+                '</h3><div class="plot"></div></div>');
+        var plot = $("#plots > .plot-container:last > div");
+        addPlot(plot,
+                [{ label: label_fn(key), fn: getStats }],
+                { yaxis: { tickFormatter: suffixFormatterGeneric } });
+        
+        var plotContainer = $("#" + key + "-plot");
+        var closeButton = plotContainer.find("img");
+        closeButton.hide();
+        closeButton.click(function() {
+            plotContainer.remove();
+            // TODO: Unregister listener
+        });
+
+        plotContainer.hover(
+            function () {
+                closeButton.show();
+            },
+            function () {
+                closeButton.hide();
+            }
+        );
+    }
+
+    function addDynamicCounters(table, group_fn, graph_fn, label_fn) {
         var counters = {};
         function onDataReceived(stats, time) {
             $.each(group_fn(stats), function(key, value) {
@@ -153,25 +185,14 @@ $(function () {
                 } else {
                     // Add UI element
                     table.find("tbody:last").append(
-                        '<tr><td>' + key +
-                            ' (<a href="#">graph</a>)</td><td class="value">N/A</td></tr>');
+                        '<tr><td>' + key + ' (<a href="#">graph</a>)</td>' +
+                            '<td class="value">N/A</td></tr>');
                     elem = table.find("tbody > tr > td:last");
                     counters[key] = elem;
 
-                    // Add UI element for adding graph
-                    function getStats(stats, time, prev_stats, prev_time) {
-                        return graph_fn(key, stats, time, prev_stats, prev_time);
-                    }
-
                     var link = table.find("tbody > tr:last > td:first > a");
                     link.click(function() {
-                        $("#plots:last").append(
-                            '<div class="plot-container"><h3>' + key +
-                                '</h3><div class="plot"></div></div>');
-                        var plot = $("#plots > .plot-container:last > div");
-                        addPlot(plot,
-                                [{ label: label_fn(key), fn: getStats }],
-                                { yaxis: { tickFormatter: suffixFormatterGeneric } });
+                        addDynamicPlot(key, graph_fn, label_fn);
                     });
                 }
                 if (!paused)
@@ -223,13 +244,13 @@ $(function () {
         }
 
         // Plots
-        addPlot($("#current-bytes-used-plot"),
+        addPlot($("#current-bytes-used-plot > div"),
                 [{ label: "residency", fn: current_bytes_used }],
                 { yaxis: { tickFormatter: suffixFormatter } });
-        addPlot($("#allocation-rate-plot"),
+        addPlot($("#allocation-rate-plot > div"),
                 [{ label: "rate", fn: allocation_rate }],
                 { yaxis: { tickFormatter: rateFormatter } });
-        addPlot($("#productivity-plot"),
+        addPlot($("#productivity-plot > div"),
                 [{ label: "wall clock time", fn: productivity_wall_percent },
                  { label: "cpu time", fn: productivity_cpu_percent }],
                 { yaxis: { tickDecimals: 1, tickFormatter: percentFormatter } });
