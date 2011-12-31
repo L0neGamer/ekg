@@ -86,19 +86,42 @@ import qualified System.Remote.Gauge.Internal as Gauge
 -- leave it enabled.
 
 -- $api
--- To use the machine-readable REST API, send an GET request to the
--- host and port passed to 'forkServer' and set the Accept header to
--- \"application\/json\".
+-- To use the machine-readable REST API, send an HTTP GET request to
+-- the host and port passed to 'forkServer'.  The following resources
+-- (i.e. URLs) are available:
 --
--- The server returns a JSON object with one attribute per
--- user-defined counter (created using 'getCounter').  In addition,
--- the object includes the following attributes:
+-- [\/] Nested JSON object containing all counters and gauges.
+-- Counters and gauges are stored as nested objects under the
+-- @counters@ and @gauges@ attributes respectively.  Content types:
+-- \"text\/html\" (default), \"application\/json\"
+--
+-- [\/combined] Flattened JSON object containing all counters and
+-- gauges.  Content types: \"application\/json\"
+--
+-- [\/counters] JSON object containing all counters.  Content types:
+-- \"application\/json\"
+--
+-- [\/counters/\<counter name\>] Value of a single counter, as a
+-- string.  Content types: \"text\/plain\"
+--
+-- [\/gauges] JSON object containing all gauges.  Content types:
+-- \"application\/json\"
+--
+-- [\/gauges/\<gauge name\>] Value of a single gauge, as a string.
+-- Content types: \"text\/plain\"
+--
+-- On JSON objects counters and gauges are stored as attributes, one
+-- per counter and gauge.  In addition to user-defined counters and
+-- gauges, the below built-in counters and gauges are also returned.
+-- Furthermore, the top-level JSON object of any resource contains the
+-- @server_time@ attribute, which indicates the server time, in
+-- microseconds, when the sample was taken.
+--
+-- Built-in counters:
 --
 -- [@bytes_allocated@] Total number of bytes allocated
 --
 -- [@num_gcs@] Number of garbage collections performed
---
--- [@max_bytes_used@] Maximum number of live bytes seen so far
 --
 -- [@num_bytes_usage_samples@] Number of byte usage samples taken
 --
@@ -108,14 +131,6 @@ import qualified System.Remote.Gauge.Internal as Gauge
 -- times).
 --
 -- [@bytes_copied@] Number of bytes copied during GC
---
--- [@current_bytes_used@] Current number of live bytes
---
--- [@current_bytes_slop@] Current number of bytes lost to slop
---
--- [@max_bytes_slop@] Maximum number of bytes lost to slop at any one time so far
---
--- [@peak_megabytes_allocated@] Maximum number of megabytes allocated
 --
 -- [@mutator_cpu_seconds@] CPU time spent running mutator threads.
 -- This does not include any profiling overhead or initialization.
@@ -131,6 +146,18 @@ import qualified System.Remote.Gauge.Internal as Gauge
 --
 -- [@wall_seconds@] Total wall clock time elapsed since start
 --
+-- Built-in gauges:
+--
+-- [@max_bytes_used@] Maximum number of live bytes seen so far
+--
+-- [@current_bytes_used@] Current number of live bytes
+--
+-- [@current_bytes_slop@] Current number of bytes lost to slop
+--
+-- [@max_bytes_slop@] Maximum number of bytes lost to slop at any one time so far
+--
+-- [@peak_megabytes_allocated@] Maximum number of megabytes allocated
+--
 -- [@par_avg_bytes_copied@] Number of bytes copied during GC, minus
 -- space held by mutable lists held by the capabilities.  Can be used
 -- with 'parMaxBytesCopied' to determine how well parallel GC utilized
@@ -141,16 +168,6 @@ import qualified System.Remote.Gauge.Internal as Gauge
 -- 'parAvgBytesCopied' divided by 'parMaxBytesCopied' approaches 1 for
 -- a maximally sequential run and approaches the number of threads
 -- (set by the RTS flag @-N@) for a maximally parallel run.
---
--- It's possible to retrieve individual counters by
---
---  * appending the counter name to the URL (e.g. \"/my_counter\"), and
---
---  * setting the Accept header to \"text\/plain\".
---
--- The reason that single counters cannot be returned as JSON is that
--- JSON doesn't allow for certain values (e.g. integers) to occur at
--- the top-level.
 
 ------------------------------------------------------------------------
 -- * The monitoring server
@@ -215,8 +232,8 @@ forkServer host port = do
 -- the two.
 --
 -- To create and use a counter, simply call 'getCounter' to create it
--- and then call e.g. 'Counter.inc' or 'Counter.add' to modify its
--- value.  Example:
+-- and then call e.g. 'System.Remote.Counter.inc' or
+-- 'System.Remote.Counter.add' to modify its value.  Example:
 --
 -- > main = do
 -- >     handle <- forkServer "localhost" 8000
@@ -227,7 +244,8 @@ forkServer host port = do
 -- >     loop
 --
 -- To create a guage, use 'getGauge' instead of 'getCounter' and then
--- call e.g. 'Gauge.set' or 'Gauge.modify'.
+-- call e.g. 'System.Remote.Gauge.set' or
+-- 'System.Remote.Gauge.modify'.
 
 class Ref r where
     new :: IO r
