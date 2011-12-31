@@ -16,7 +16,7 @@ cabal-version:       >=1.6
 data-files:          assets/index.html assets/monitor.js assets/monitor.css
                      assets/jquery.flot.min.js assets/blueprint/screen.css
                      assets/blueprint/print.css assets/blueprint/ie.css
-                     examples/Basic.hs assets/dialog_close.png
+                     assets/dialog_close.png
 
 library
   exposed-modules:     System.Remote.Counter
