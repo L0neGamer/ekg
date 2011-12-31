@@ -179,8 +179,9 @@ serverThreadId = threadId
 -- either a numeric network address (dotted quad for IPv4,
 -- colon-separated hex for IPv6) or a hostname (e.g. \"localhost\").
 -- The client can control the Content-Type used in responses by
--- setting the Accept header.  At the moment two content types are
--- available: \"application\/json\" and \"text\/html\".
+-- setting the Accept header.  At the moment three content types are
+-- available: \"application\/json\", \"text\/html\", and
+-- \"text\/plain\".
 forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> Int           -- ^ Port to listen on (e.g. 8000)
            -> IO Server
@@ -201,9 +202,12 @@ forkServer host port = do
 
 -- $userdefined
 -- The monitoring server can store and serve user-defined,
--- integer-valued counters and gauges.  Each counter or gauge is
--- associated with a name, which is used when the counter or gauge is
--- displayed in the UI or returned in a JSON object.
+-- integer-valued counters and gauges.  A counter is a monotonically
+-- increasing value (e.g. TCP connections established since program
+-- start). A gauge is a variable value (e.g. the current number of
+-- concurrent connections.)  Each counter or gauge is associated with
+-- a name, which is used when the counter or gauge is displayed in the
+-- UI or returned in a JSON object.
 --
 -- Even though it's technically possible to have a counter and a gauge
 -- with the same name, associated with the same server, it's not
@@ -212,7 +216,7 @@ forkServer host port = do
 --
 -- To create and use a counter, simply call 'getCounter' to create it
 -- and then call e.g. 'Counter.inc' or 'Counter.add' to modify its
--- value. Example:
+-- value.  Example:
 --
 -- > main = do
 -- >     handle <- forkServer "localhost" 8000
@@ -221,6 +225,9 @@ forkServer host port = do
 -- >             inc counter
 -- >             loop
 -- >     loop
+--
+-- To create a guage, use 'getGauge' instead of 'getCounter' and then
+-- call e.g. 'Gauge.set' or 'Gauge.modify'.
 
 class Ref r where
     new :: IO r
