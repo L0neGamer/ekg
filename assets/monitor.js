@@ -209,14 +209,16 @@ $(document).ready(function () {
                 } else {
                     // Add UI element
                     table.find("tbody:last").append(
-                        '<tr><td>' + key + ' (<a href="#">graph</a>)</td>' +
+                        '<tr><td>' + key +
+                            ' <img src="graph-icon.png" class="graph-button" alt="Add graph"></td>' +
                             '<td class="value">N/A</td></tr>');
                     elem = table.find("tbody > tr > td:last");
                     counters[key] = elem;
 
-                    var link = table.find("tbody > tr:last > td:first > a");
-                    link.click(function () {
+                    var button = table.find("tbody > tr:last > td:first > img");
+                    button.click(function () {
                         addDynamicPlot(key, graph_fn, label_fn);
+                        $(this).hide();
                     });
                 }
                 if (!paused)

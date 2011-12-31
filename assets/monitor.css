@@ -58,7 +58,7 @@
 
 .close-button {
     float: right;
-    cursor: hand;
+    cursor: pointer;
 }
 
 /**
@@ -67,4 +67,9 @@
 
 .value {
     text-align: right;
+}
+
+.graph-button {
+    cursor: pointer;
+    vertical-align: middle;
 }
