@@ -116,7 +116,7 @@ import qualified System.Remote.Gauge.Internal as Gauge
 -- gauges, the below built-in counters and gauges are also returned.
 -- Furthermore, the top-level JSON object of any resource contains the
 -- @server_timestamp_millis@ attribute, which indicates the server
--- time, in microseconds, when the sample was taken.
+-- time, in milliseconds, when the sample was taken.
 --
 -- Built-in counters:
 --
