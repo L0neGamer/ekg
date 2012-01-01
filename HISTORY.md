@@ -1,4 +1,4 @@
-## 0.3.0.0 (2011-12-31)
+## 0.3.0.0 (2012-01-01)
 
  * Add gauges and change counters to always be monotonically increasing
 
