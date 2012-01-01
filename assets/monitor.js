@@ -96,9 +96,8 @@ $(document).ready(function () {
 
     function fetchData() {
         function onDataReceived(stats) {
-            var now = new Date().getTime();
             for (var i = 0; i < listeners.length; i++) {
-                listeners[i](stats, now);
+                listeners[i](stats, stats.server_timestamp_millis);
             }
         }
 
