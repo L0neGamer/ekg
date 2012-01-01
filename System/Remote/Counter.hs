@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 -- | This module defines a type for mutable, integer-valued counters.
--- Counters are monotonically increasing and can be used to track
--- e.g. the number of requests served since program start.  All
+-- Counters are monotonically increasing values and can be used to
+-- track e.g. the number of requests served since program start.  All
 -- operations on counters are thread-safe.
 module System.Remote.Counter
     (
