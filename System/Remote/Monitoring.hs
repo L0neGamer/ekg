@@ -91,10 +91,10 @@ import qualified System.Remote.Gauge.Internal as Gauge
 -- the host and port passed to 'forkServer'.  The following resources
 -- (i.e. URLs) are available:
 --
--- [\/] Nested JSON object containing all counters and gauges.
--- Counters and gauges are stored as nested objects under the
--- @counters@ and @gauges@ attributes respectively.  Content types:
--- \"text\/html\" (default), \"application\/json\"
+-- [\/] JSON object containing all counters and gauges.  Counters and
+-- gauges are stored as nested objects under the @counters@ and
+-- @gauges@ attributes, respectively.  Content types: \"text\/html\"
+-- (default), \"application\/json\"
 --
 -- [\/combined] Flattened JSON object containing all counters and
 -- gauges.  Content types: \"application\/json\"
@@ -103,20 +103,22 @@ import qualified System.Remote.Gauge.Internal as Gauge
 -- \"application\/json\"
 --
 -- [\/counters/\<counter name\>] Value of a single counter, as a
--- string.  Content types: \"text\/plain\"
+-- string.  The name should be UTF-8 encoded.  Content types:
+-- \"text\/plain\"
 --
 -- [\/gauges] JSON object containing all gauges.  Content types:
 -- \"application\/json\"
 --
 -- [\/gauges/\<gauge name\>] Value of a single gauge, as a string.
--- Content types: \"text\/plain\"
+-- The name should be UTF-8 encoded.  Content types: \"text\/plain\"
 --
--- On JSON objects counters and gauges are stored as attributes, one
--- per counter and gauge.  In addition to user-defined counters and
--- gauges, the below built-in counters and gauges are also returned.
--- Furthermore, the top-level JSON object of any resource contains the
--- @server_timestamp_millis@ attribute, which indicates the server
--- time, in milliseconds, when the sample was taken.
+-- Counters and gauges are stored as attributes of the returned JSON
+-- objects, one attribute per counter or gauge.  In addition to
+-- user-defined counters and gauges, the below built-in counters and
+-- gauges are also returned.  Furthermore, the top-level JSON object
+-- of any resource contains the @server_timestamp_millis@ attribute,
+-- which indicates the server time, in milliseconds, when the sample
+-- was taken.
 --
 -- Built-in counters:
 --
