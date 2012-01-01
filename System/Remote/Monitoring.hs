@@ -52,6 +52,7 @@ import qualified Data.Map as Map
 import Data.Maybe (listToMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Word (Word8)
 import qualified GHC.Stats as Stats
 import Paths_ekg (getDataDir)
@@ -114,8 +115,8 @@ import qualified System.Remote.Gauge.Internal as Gauge
 -- per counter and gauge.  In addition to user-defined counters and
 -- gauges, the below built-in counters and gauges are also returned.
 -- Furthermore, the top-level JSON object of any resource contains the
--- @server_time@ attribute, which indicates the server time, in
--- microseconds, when the sample was taken.
+-- @server_timestamp_millis@ attribute, which indicates the server
+-- time, in microseconds, when the sample was taken.
 --
 -- Built-in counters:
 --
@@ -301,14 +302,16 @@ getGauge name server = getRef name (userGauges server)
 -- | All the stats exported by the server (i.e. GC stats plus user
 -- defined counters).
 data Stats = Stats
-    !Stats.GCStats    -- GC statistics
-    ![(T.Text, Json)]  -- Counters
-    ![(T.Text, Json)]  -- Gauges
+    !Stats.GCStats          -- GC statistics
+    ![(T.Text, Json)]       -- Counters
+    ![(T.Text, Json)]       -- Gauges
+    {-# UNPACK #-} !Double  -- Milliseconds since epoch
 
 instance A.ToJSON Stats where
-    toJSON (Stats gcStats@(Stats.GCStats {..}) counters gauges) = A.object $
-        [ "counters" .= Assocs (gcCounters ++ counters)
-        , "gauges"   .= Assocs (gcGauges ++ gauges)
+    toJSON (Stats gcStats@(Stats.GCStats {..}) counters gauges t) = A.object $
+        [ "server_timestamp_millis" .= t
+        , "counters"                .= Assocs (gcCounters ++ counters)
+        , "gauges"                  .= Assocs (gcGauges ++ gauges)
         ]
       where
         (gcCounters, gcGauges) = partitionGcStats gcStats
@@ -317,8 +320,10 @@ instance A.ToJSON Stats where
 newtype Combined = Combined Stats
 
 instance A.ToJSON Combined where
-    toJSON (Combined (Stats (Stats.GCStats {..}) counters gauges)) = A.object $
-        [ "bytes_allocated"          .= bytesAllocated
+    toJSON (Combined (Stats (Stats.GCStats {..}) counters gauges t)) =
+        A.object $
+        [ "server_timestamp_millis"  .= t
+        , "bytes_allocated"          .= bytesAllocated
         , "num_gcs"                  .= numGcs
         , "max_bytes_used"           .= maxBytesUsed
         , "num_bytes_usage_samples"  .= numByteUsageSamples
@@ -339,11 +344,21 @@ instance A.ToJSON Combined where
         ] ++ map (uncurry (.=)) counters ++
         map (uncurry (.=)) gauges
 
--- | A list of string keys and JSON-encodable values.
+-- | A list of string keys and JSON-encodable values.  Used to render
+-- a list of key-value pairs as a JSON object.
 newtype Assocs = Assocs [(T.Text, Json)]
 
 instance A.ToJSON Assocs where
     toJSON (Assocs xs) = A.object $ map (uncurry (.=)) xs
+
+-- | A group of either counters or gauges.
+data Group = Group
+     ![(T.Text, Json)]
+    {-# UNPACK #-} !Double  -- Milliseconds since epoch
+
+instance A.ToJSON Group where
+    toJSON (Group xs t) =
+        A.object $ ("server_timestamp_millis" .= t) : map (uncurry (.=)) xs
 
 ------------------------------------------------------------------------
 -- * HTTP request handler
@@ -397,7 +412,8 @@ serveMany :: Ref r => IORef (M.HashMap T.Text r) -> Snap ()
 serveMany mapRef = do
     list <- liftIO $ readAllRefs mapRef
     modifyResponse $ setContentType "application/json"
-    writeLBS $ A.encode $ A.toJSON $ Assocs list
+    time <- liftIO getTimeMillis
+    writeLBS $ A.encode $ A.toJSON $ Group list time
 {-# INLINABLE serveMany #-}
 
 -- | Serve all counter and gauges, built-in or not, as a nested JSON
@@ -413,7 +429,8 @@ serveAll counters gauges = do
     gcStats <- liftIO Stats.getGCStats
     counterList <- liftIO $ readAllRefs counters
     gaugeList <- liftIO $ readAllRefs gauges
-    writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList
+    time <- liftIO getTimeMillis
+    writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList time
 
 -- | Serve all counters and gauges, built-in or not, as a flattened
 -- JSON object.
@@ -423,8 +440,9 @@ serveCombined counters gauges = do
     gcStats <- liftIO Stats.getGCStats
     counterList <- liftIO $ readAllRefs counters
     gaugeList <- liftIO $ readAllRefs gauges
+    time <- liftIO getTimeMillis
     writeLBS $ A.encode $ A.toJSON $ Combined $
-        Stats gcStats counterList gaugeList
+        Stats gcStats counterList gaugeList time
 
 -- | Serve a single counter, as plain text.
 serveOne :: Ref r => IORef (M.HashMap T.Text r) -> Snap ()
@@ -535,3 +553,10 @@ breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
     let (x, y) = S.break (== w) s
      in (x, S.drop 1 y)
+
+------------------------------------------------------------------------
+-- Utilities for working with timestamps
+
+-- | Return the number of milliseconds since epoch.
+getTimeMillis :: IO Double
+getTimeMillis = (realToFrac . (* 1000)) `fmap` getPOSIXTime

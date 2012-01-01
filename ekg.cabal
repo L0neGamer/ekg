@@ -35,6 +35,7 @@ library
                        snap-core < 0.8,
                        snap-server < 0.8,
                        text < 0.12,
+                       time < 1.5,
                        transformers < 0.3,
                        unordered-containers < 0.2
   ghc-options:         -Wall
