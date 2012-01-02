@@ -13,6 +13,10 @@
 
  * Make it possible to graph user-defined counters and gauges
 
+ * Format numbers using comma separators
+
+ * Show a message box when the server can't be reached
+
 ## 0.2.0.0 (2011-12-30)
 
  * Add user-defined counters
