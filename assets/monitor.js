@@ -109,14 +109,20 @@ $(document).ready(function () {
 
     function fetchData() {
         function onDataReceived(stats) {
+            $("#message-box").hide();
             for (var i = 0; i < listeners.length; i++) {
                 listeners[i](stats, stats.server_timestamp_millis);
             }
         }
 
+        function onError() {
+            $("#message-box").show();
+        }
+
         $.ajax({
             dataType: 'json',
             success: onDataReceived,
+            error: onError,
             cache: false
         });
 

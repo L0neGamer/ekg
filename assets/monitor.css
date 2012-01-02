@@ -47,6 +47,22 @@
 }
 
 /**
+ * Message box
+ *
+ * Taken from: http://woork.blogspot.com/2008/03/css-message-box-collection.html
+ */
+
+.icon-alert {
+    border: solid 1px #CB2026;
+    background: #F6CBCA url(cross-16-ns.png) 8px 6px no-repeat;
+    color: #D0282A;
+    padding: 4px 0;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+/**
  * Plots
  */
 
