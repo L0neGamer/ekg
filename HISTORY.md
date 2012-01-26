@@ -1,3 +1,9 @@
+## 0.3.0.1 (2012-01-26)
+
+ * Switch from Blueprint to Bootstrap CSS
+
+ * Overhaul look-and-feel
+
 ## 0.3.0.0 (2012-01-01)
 
  * Add gauges and change counters to always be monotonically increasing
