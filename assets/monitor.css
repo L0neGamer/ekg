@@ -16,50 +16,11 @@
 }
 
 /**
- * Top bar
+ * Body margin
  */
 
-.bar {
-    overflow: hidden;
-    background-color: #777;
-    background-color: #2D2D2D;
-    color: #CCC;
-    padding: 0 10px;
-    line-height: 27px;
-}
-
-.title {
-    font-weight: bold;
-}
-
-.update-control {
-    float: right;
-}
-
-/**
- * Container
- */
-
-/* Make the container use the whole window */
-.container {
-    width: auto;
-    margin: 10px 0 0 10px;
-}
-
-/**
- * Message box
- *
- * Taken from: http://woork.blogspot.com/2008/03/css-message-box-collection.html
- */
-
-.icon-alert {
-    border: solid 1px #CB2026;
-    background: #F6CBCA url(cross-16-ns.png) 8px 6px no-repeat;
-    color: #D0282A;
-    padding: 4px 0;
-    text-align: center;
-    font-weight: bold;
-    margin-bottom: 10px;
+body {
+    padding-top: 60px;
 }
 
 /**

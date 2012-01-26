@@ -107,16 +107,21 @@ $(document).ready(function () {
         });
     }
 
+    var alertVisible = false;
     function fetchData() {
         function onDataReceived(stats) {
-            $("#message-box").hide();
+            if (alertVisible) {
+                $(".alert-message").hide();
+            }
+            alertVisible = false;
             for (var i = 0; i < listeners.length; i++) {
                 listeners[i](stats, stats.server_timestamp_millis);
             }
         }
 
         function onError() {
-            $("#message-box").show();
+            $(".alert-message").show();
+            alertVisible = true;
         }
 
         $.ajax({
@@ -230,6 +235,7 @@ $(document).ready(function () {
                     table.find("tbody:last").append(
                         '<tr><td>' + key +
                             ' <img src="graph-icon.png" class="graph-button"' +
+                            ' width="16" height="16"' +
                             ' alt="Add graph" title="Add graph"></td>' +
                             '<td class="value">N/A</td></tr>');
                     elem = table.find("tbody > tr > td:last");
