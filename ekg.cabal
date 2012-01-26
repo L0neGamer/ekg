@@ -14,10 +14,8 @@ category:            System, Network
 build-type:          Simple
 cabal-version:       >=1.6
 data-files:          assets/index.html assets/monitor.js assets/monitor.css
-                     assets/jquery.flot.min.js assets/blueprint/screen.css
-                     assets/blueprint/print.css assets/blueprint/ie.css
+                     assets/jquery.flot.min.js
                      assets/dialog_close.png assets/graph-icon.png
-                     assets/cross-16-ns.png
 
 library
   exposed-modules:     System.Remote.Counter
