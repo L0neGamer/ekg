@@ -15,6 +15,7 @@ build-type:          Simple
 cabal-version:       >=1.6
 data-files:          assets/index.html assets/monitor.js assets/monitor.css
                      assets/jquery.flot.min.js
+                     assets/bootstrap-1.4.0.min.css
                      assets/dialog_close.png assets/graph-icon.png
 
 library
