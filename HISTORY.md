@@ -1,3 +1,8 @@
+## 0.3.0.2 (2012-03-07)
+
+ * Don't require an internet connection, by serving Bootstrap CSS and
+   jQuery from the monitoring server.
+
 ## 0.3.0.1 (2012-01-26)
 
  * Switch from Blueprint to Bootstrap CSS
