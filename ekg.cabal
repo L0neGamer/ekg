@@ -37,7 +37,7 @@ library
                        text < 0.12,
                        time < 1.5,
                        transformers < 0.3,
-                       unordered-containers < 0.2
+                       unordered-containers < 0.3
   ghc-options:         -Wall
 
 source-repository head
