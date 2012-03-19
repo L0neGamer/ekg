@@ -1,3 +1,7 @@
+## 0.3.0.3 (2012-03-19)
+
+ * Support Snap 0.8
+
 ## 0.3.0.2 (2012-03-07)
 
  * Don't require an internet connection, by serving Bootstrap CSS and
