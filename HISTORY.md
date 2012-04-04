@@ -1,3 +1,7 @@
+## 0.3.0.4 (2012-04-03)
+
+ * Change icons to Creative Commons Attribution 3.0 licensed one
+
 ## 0.3.0.3 (2012-03-19)
 
  * Support Snap 0.8
