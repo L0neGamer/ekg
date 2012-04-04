@@ -1,13 +1,3 @@
-Icon: assets/graph-icon.png
-Author: Dirceu Veiga
-URL: http://www.fasticon.com/freeware/comic-ipad-icons/
-LICENSE:
-  All Icons on the FastIcon “Download” page are Freeware for Personal Use.
-
-  However, if you want to use these icons in your project, software,
-  application or website, you need to pay US$ 24 per icon set.
-
-Icon: assets/dialog_close.png
-Author: Silvestre Herrera
-URL: http://www.softicons.com/free-icons/toolbar-icons/gion-icons-by-silvestre-herrera/actions-dialog-close-icon
-LICENSE: GPL-2
+Icons: assets/chart_line_add.png assets/cross.png
+URL: http://www.fatcow.com/free-icons
+LICENSE: Creative Commons Attribution 3.0 License

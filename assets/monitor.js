@@ -197,7 +197,7 @@ $(document).ready(function () {
 
         $("#plots:last").append(
             '<div id="' + key + '-plot" class="plot-container">' +
-                '<img src="dialog_close.png" class="close-button"><h3>' + key +
+                '<img src="cross.png" class="close-button"><h3>' + key +
                 '</h3><div class="plot"></div></div>');
         var plot = $("#plots > .plot-container:last > div");
         var observer = addPlot(plot,
@@ -234,7 +234,7 @@ $(document).ready(function () {
                     // Add UI element
                     table.find("tbody:last").append(
                         '<tr><td>' + key +
-                            ' <img src="graph-icon.png" class="graph-button"' +
+                            ' <img src="chart_line_add.png" class="graph-button"' +
                             ' width="16" height="16"' +
                             ' alt="Add graph" title="Add graph"></td>' +
                             '<td class="value">N/A</td></tr>');
