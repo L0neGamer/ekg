@@ -4,15 +4,15 @@ $(document).ready(function () {
     // Number formatters
     function commaify(n)
     {
-	var nStr = n.toString();
-	var x = nStr.split('.');
-	var x1 = x[0];
-	var x2 = x.length > 1 ? '.' + x[1] : '';
-	var rgx = /(\d+)(\d{3})/;
-	while (rgx.test(x1)) {
-	    x1 = x1.replace(rgx, '$1' + ',' + '$2');
-	}
-	return x1 + x2;
+        var nStr = n.toString();
+        var x = nStr.split('.');
+        var x1 = x[0];
+        var x2 = x.length > 1 ? '.' + x[1] : '';
+        var rgx = /(\d+)(\d{3})/;
+        while (rgx.test(x1)) {
+            x1 = x1.replace(rgx, '$1' + ',' + '$2');
+        }
+        return x1 + x2;
     }
 
     function formatSuffix(val, opt_prec) {
@@ -94,7 +94,7 @@ $(document).ready(function () {
 
     // Fetch data periodically and notify interested parties.
     var listeners = [];
-    
+
     function subscribe(fn) {
         listeners.push(fn);
     }
@@ -132,7 +132,7 @@ $(document).ready(function () {
         });
 
         setTimeout(fetchData, updateInterval);
-    };
+    }
     fetchData();
 
     function addPlot(elem, series, opts) {
@@ -140,7 +140,7 @@ $(document).ready(function () {
             series: { shadowSize: 0 },  // drawing is faster without shadows
             xaxis: { mode: "time", tickSize: [10, "second"] }
         };
-        var options = $.extend(true, {}, defaultOptions, opts)
+        var options = $.extend(true, {}, defaultOptions, opts);
         var data = new Array(series.length);
         var maxPoints = 60;
         for(var i = 0; i < series.length; i++) {
@@ -161,7 +161,7 @@ $(document).ready(function () {
             }
 
             // zip lengends with data
-            var res = []
+            var res = [];
             for(var i = 0; i < series.length; i++)
                 res.push({ label: series[i].label, data: data[i] });
 
@@ -255,6 +255,29 @@ $(document).ready(function () {
         subscribe(onDataReceived);
     }
 
+    function addDynamicLabels(table, group_fn) {
+        var labels = {};
+        function onDataReceived(stats, time) {
+            $.each(group_fn(stats), function (key, value) {
+                var elem;
+                if (key in labels) {
+                    elem = labels[key];
+                } else {
+                    // Add UI element
+                    table.find("tbody:last").append(
+                        '<tr><td>' + key + '</td>' +
+                            '<td class="string">N/A</td></tr>');
+                    elem = table.find("tbody > tr > td:last");
+                    labels[key] = elem;
+                }
+                if (!paused)
+                    elem.text(value);
+            });
+        }
+
+        subscribe(onDataReceived);
+    }
+
     function initAll() {
         // Metrics
         var current_bytes_used = function (stats) {
@@ -277,7 +300,7 @@ $(document).ready(function () {
             var gc_seconds = stats.counters.gc_wall_seconds -
                 prev_stats.counters.gc_wall_seconds;
             return 100 * mutator_seconds / (mutator_seconds + gc_seconds);
-        }
+        };
         var productivity_cpu_percent = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
@@ -286,14 +309,14 @@ $(document).ready(function () {
             var gc_seconds = stats.counters.gc_cpu_seconds -
                 prev_stats.counters.gc_cpu_seconds;
             return 100 * mutator_seconds / (mutator_seconds + gc_seconds);
-        }
+        };
         var allocation_rate = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
             return 1000 * (stats.counters.bytes_allocated -
                            prev_stats.counters.bytes_allocated) /
                 (time - prev_time);
-        }
+        };
 
         // Plots
         addPlot($("#current-bytes-used-plot > div"),
@@ -308,13 +331,13 @@ $(document).ready(function () {
                 { yaxis: { tickDecimals: 1, tickFormatter: percentFormatter } });
 
         // Counters
-        addCounter($("#max-bytes-used"), max_bytes_used, formatSuffix)
-        addCounter($("#current-bytes-used"), current_bytes_used, formatSuffix)
-        addCounter($("#max-bytes-slop"), max_bytes_slop, formatSuffix)
-        addCounter($("#current-bytes-slop"), current_bytes_slop, formatSuffix)
-        addCounter($("#productivity-wall"), productivity_wall_percent, formatPercent)
-        addCounter($("#productivity-cpu"), productivity_cpu_percent, formatPercent)
-        addCounter($("#allocation-rate"), allocation_rate, formatRate)
+        addCounter($("#max-bytes-used"), max_bytes_used, formatSuffix);
+        addCounter($("#current-bytes-used"), current_bytes_used, formatSuffix);
+        addCounter($("#max-bytes-slop"), max_bytes_slop, formatSuffix);
+        addCounter($("#current-bytes-slop"), current_bytes_slop, formatSuffix);
+        addCounter($("#productivity-wall"), productivity_wall_percent, formatPercent);
+        addCounter($("#productivity-cpu"), productivity_cpu_percent, formatPercent);
+        addCounter($("#allocation-rate"), allocation_rate, formatRate);
 
         addDynamicCounters($("#counter-table"), function (stats) {
             return stats.counters;
@@ -333,6 +356,10 @@ $(document).ready(function () {
             return stats.gauges[key];
         }, function (label) {
             return label;
+        });
+
+        addDynamicLabels($("#label-table"), function (stats) {
+            return stats.labels;
         });
     }
 

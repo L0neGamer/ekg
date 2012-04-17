@@ -23,11 +23,13 @@ extra-source-files:  LICENSE.icons LICENSE.javascript README.md
 library
   exposed-modules:     System.Remote.Counter
                        System.Remote.Gauge
+                       System.Remote.Label
                        System.Remote.Monitoring
 
   other-modules:       Paths_ekg
                        System.Remote.Counter.Internal
                        System.Remote.Gauge.Internal
+                       System.Remote.Label.Internal
 
   build-depends:       aeson < 0.7,
                        base >= 4.5 && < 5,

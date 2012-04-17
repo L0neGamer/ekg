@@ -1,4 +1,5 @@
-{-# LANGUAGE ExistentialQuantification, OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE ExistentialQuantification, OverloadedStrings, RecordWildCards,
+  FunctionalDependencies #-}
 -- | This module provides remote monitoring of a running process over
 -- HTTP.  It can be used to run an HTTP server that provides both a
 -- web-based user interface and a machine-readable API (e.g. JSON).
@@ -33,6 +34,7 @@ module System.Remote.Monitoring
       -- $userdefined
     , getCounter
     , getGauge
+    , getLabel
     ) where
 
 import Control.Applicative ((<$>), (<|>))
@@ -70,6 +72,8 @@ import System.Remote.Counter (Counter)
 import qualified System.Remote.Counter.Internal as Counter
 import System.Remote.Gauge (Gauge)
 import qualified System.Remote.Gauge.Internal as Gauge
+import System.Remote.Label (Label)
+import qualified System.Remote.Label.Internal as Label
 
 -- $configuration
 --
@@ -112,13 +116,19 @@ import qualified System.Remote.Gauge.Internal as Gauge
 -- [\/gauges/\<gauge name\>] Value of a single gauge, as a string.
 -- The name should be UTF-8 encoded.  Content types: \"text\/plain\"
 --
--- Counters and gauges are stored as attributes of the returned JSON
--- objects, one attribute per counter or gauge.  In addition to
--- user-defined counters and gauges, the below built-in counters and
--- gauges are also returned.  Furthermore, the top-level JSON object
--- of any resource contains the @server_timestamp_millis@ attribute,
--- which indicates the server time, in milliseconds, when the sample
--- was taken.
+-- [\/labels] JSON object containing all labels.  Content types:
+-- \"application\/json\"
+--
+-- [\/labels/\<label name\>] Value of a single label, as a string.
+-- The name should be UTF-8 encoded.  Content types: \"text\/plain\"
+--
+-- Counters, gauges and labels are stored as attributes of the
+-- returned JSON objects, one attribute per counter, gauge or label.
+-- In addition to user-defined counters, gauges and labels, the below
+-- built-in counters and gauges are also returned.  Furthermore, the
+-- top-level JSON object of any resource contains the
+-- @server_timestamp_millis@ attribute, which indicates the server
+-- time, in milliseconds, when the sample was taken.
 --
 -- Built-in counters:
 --
@@ -181,12 +191,16 @@ type Counters = M.HashMap T.Text Counter
 -- Map of user-defined gauges.
 type Gauges = M.HashMap T.Text Gauge
 
+-- Map of user-defined labels.
+type Labels = M.HashMap T.Text Label
+
 -- | A handle that can be used to control the monitoring server.
 -- Created by 'forkServer'.
 data Server = Server {
       threadId :: {-# UNPACK #-} !ThreadId
     , userCounters :: !(IORef Counters)
     , userGauges :: !(IORef Gauges)
+    , userLabels :: !(IORef Labels)
     }
 
 -- | The thread ID of the server.  You can kill the server by killing
@@ -208,8 +222,9 @@ forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
 forkServer host port = do
     counters <- newIORef M.empty
     gauges <- newIORef M.empty
-    tid <- forkIO $ httpServe conf (monitor counters gauges)
-    return $! Server tid counters gauges
+    labels <- newIORef M.empty
+    tid <- forkIO $ httpServe conf (monitor counters gauges labels)
+    return $! Server tid counters gauges labels
   where conf = Config.setVerbose False $
                Config.setErrorLog Config.ConfigNoLog $
                Config.setAccessLog Config.ConfigNoLog $
@@ -218,15 +233,17 @@ forkServer host port = do
                Config.defaultConfig
 
 ------------------------------------------------------------------------
--- * User-defined counters and gauges
+-- * User-defined counters, gauges and labels
 
 -- $userdefined
 -- The monitoring server can store and serve user-defined,
--- integer-valued counters and gauges.  A counter is a monotonically
--- increasing value (e.g. TCP connections established since program
--- start). A gauge is a variable value (e.g. the current number of
--- concurrent connections.)  Each counter or gauge is associated with
--- a name, which is used when the counter or gauge is displayed in the
+-- integer-valued counters and gauges, and string-value labels.  A
+-- counter is a monotonically increasing value (e.g. TCP connections
+-- established since program start). A gauge is a variable value
+-- (e.g. the current number of concurrent connections). A label is
+-- simply a string value, free-form (e.g. exporting the command line
+-- arguments or host name). Each counter or gauge is associated with a
+-- name, which is used when the counter or gauge is displayed in the
 -- UI or returned in a JSON object.
 --
 -- Even though it's technically possible to have a counter and a gauge
@@ -246,26 +263,30 @@ forkServer host port = do
 -- >             loop
 -- >     loop
 --
--- To create a guage, use 'getGauge' instead of 'getCounter' and then
+-- To create a gauge, use 'getGauge' instead of 'getCounter' and then
 -- call e.g. 'System.Remote.Gauge.set' or
--- 'System.Remote.Gauge.modify'.
+-- 'System.Remote.Gauge.modify'. Similar for labels.
 
-class Ref r where
+class Ref r t | r -> t where
     new :: IO r
-    read :: r -> IO Int
+    read :: r -> IO t
 
-instance Ref Counter where
+instance Ref Counter Int where
     new = Counter.new
     read = Counter.read
 
-instance Ref Gauge where
+instance Ref Gauge Int where
     new = Gauge.new
     read = Gauge.read
+
+instance Ref Label T.Text where
+    new = Label.new
+    read = Label.read
 
 -- | Lookup a 'Ref' by name in the given map.  If no 'Ref' exists
 -- under the given name, create a new one, insert it into the map and
 -- return it.
-getRef :: Ref r
+getRef :: Ref r t
        => T.Text                      -- ^ 'Ref' name
        -> IORef (M.HashMap T.Text r)  -- ^ Server that will serve the 'Ref'
        -> IO r
@@ -298,6 +319,15 @@ getGauge :: T.Text  -- ^ Gauge name
          -> IO Gauge
 getGauge name server = getRef name (userGauges server)
 
+-- | Return the label associated with the given name and server.
+-- Multiple calls to 'getLabel' with the same arguments will return
+-- the same gauge.  The first time 'getLabel' is called for a given
+-- name and server, a new, empty label will be returned.
+getLabel :: T.Text  -- ^ Label name
+         -> Server  -- ^ Server that will serve the label
+         -> IO Label
+getLabel name server = getRef name (userLabels server)
+
 ------------------------------------------------------------------------
 -- * JSON serialization
 
@@ -307,13 +337,15 @@ data Stats = Stats
     !Stats.GCStats          -- GC statistics
     ![(T.Text, Json)]       -- Counters
     ![(T.Text, Json)]       -- Gauges
+    ![(T.Text, Json)]       -- Labels
     {-# UNPACK #-} !Double  -- Milliseconds since epoch
 
 instance A.ToJSON Stats where
-    toJSON (Stats gcStats@(Stats.GCStats {..}) counters gauges t) = A.object $
+    toJSON (Stats gcStats@(Stats.GCStats {..}) counters gauges labels t) = A.object $
         [ "server_timestamp_millis" .= t
         , "counters"                .= Assocs (gcCounters ++ counters)
         , "gauges"                  .= Assocs (gcGauges ++ gauges)
+        , "labels"                  .= Assocs (labels)
         ]
       where
         (gcCounters, gcGauges) = partitionGcStats gcStats
@@ -322,7 +354,7 @@ instance A.ToJSON Stats where
 newtype Combined = Combined Stats
 
 instance A.ToJSON Combined where
-    toJSON (Combined (Stats (Stats.GCStats {..}) counters gauges t)) =
+    toJSON (Combined (Stats (Stats.GCStats {..}) counters gauges labels t)) =
         A.object $
         [ "server_timestamp_millis"  .= t
         , "bytes_allocated"          .= bytesAllocated
@@ -344,7 +376,8 @@ instance A.ToJSON Combined where
         , "par_avg_bytes_copied"     .= parAvgBytesCopied
         , "par_max_bytes_copied"     .= parMaxBytesCopied
         ] ++ map (uncurry (.=)) counters ++
-        map (uncurry (.=)) gauges
+        map (uncurry (.=)) gauges ++
+        map (uncurry (.=)) labels
 
 -- | A list of string keys and JSON-encodable values.  Used to render
 -- a list of key-value pairs as a JSON object.
@@ -366,14 +399,14 @@ instance A.ToJSON Group where
 -- * HTTP request handler
 
 -- | A handler that can be installed into an existing Snap application.
-monitor :: IORef Counters -> IORef Gauges -> Snap ()
-monitor counters gauges = do
+monitor :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
+monitor counters gauges labels = do
     dataDir <- liftIO getDataDir
     route [
           ("", method GET (format "application/json"
-                           (serveAll counters gauges)))
+                           (serveAll counters gauges labels)))
         , ("combined", method GET (format "application/json"
-                                   (serveCombined counters gauges)))
+                                   (serveCombined counters gauges labels)))
         , ("counters", method GET (format "application/json"
                                    (serveMany counters)))
         , ("counters/:name", method GET (format "text/plain"
@@ -382,6 +415,10 @@ monitor counters gauges = do
                                  (serveMany gauges)))
         , ("gauges/:name", method GET (format "text/plain"
                                        (serveOne gauges)))
+        , ("labels", method GET (format "application/json"
+                                 (serveMany labels)))
+        , ("labels/:name", method GET (format "text/plain"
+                                       (serveOne labels)))
         ]
         <|> serveDirectory (dataDir </> "assets")
 
@@ -401,7 +438,7 @@ format fmt action = do
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: Ref r => IORef (M.HashMap T.Text r) -> IO [(T.Text, Json)]
+readAllRefs :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r) -> IO [(T.Text, Json)]
 readAllRefs mapRef = do
     m <- readIORef mapRef
     forM (M.toList m) $ \ (name, ref) -> do
@@ -410,7 +447,7 @@ readAllRefs mapRef = do
 {-# INLINABLE readAllRefs #-}
 
 -- | Serve a collection of counters or gauges, as a JSON object.
-serveMany :: Ref r => IORef (M.HashMap T.Text r) -> Snap ()
+serveMany :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r) -> Snap ()
 serveMany mapRef = do
     list <- liftIO $ readAllRefs mapRef
     modifyResponse $ setContentType "application/json"
@@ -418,10 +455,10 @@ serveMany mapRef = do
     writeLBS $ A.encode $ A.toJSON $ Group list time
 {-# INLINABLE serveMany #-}
 
--- | Serve all counter and gauges, built-in or not, as a nested JSON
--- object.
-serveAll :: IORef Counters -> IORef Gauges -> Snap ()
-serveAll counters gauges = do
+-- | Serve all counter, gauges and labels, built-in or not, as a
+-- nested JSON object.
+serveAll :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
+serveAll counters gauges labels = do
     req <- getRequest
     -- Workaround: Snap still matches requests to /foo to this handler
     -- if the Accept header is "application/json", even though such
@@ -431,23 +468,25 @@ serveAll counters gauges = do
     gcStats <- liftIO Stats.getGCStats
     counterList <- liftIO $ readAllRefs counters
     gaugeList <- liftIO $ readAllRefs gauges
+    labelList <- liftIO $ readAllRefs labels
     time <- liftIO getTimeMillis
-    writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList time
+    writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList labelList time
 
 -- | Serve all counters and gauges, built-in or not, as a flattened
 -- JSON object.
-serveCombined :: IORef Counters -> IORef Gauges -> Snap ()
-serveCombined counters gauges = do
+serveCombined :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
+serveCombined counters gauges labels = do
     modifyResponse $ setContentType "application/json"
     gcStats <- liftIO Stats.getGCStats
     counterList <- liftIO $ readAllRefs counters
     gaugeList <- liftIO $ readAllRefs gauges
+    labelList <- liftIO $ readAllRefs labels
     time <- liftIO getTimeMillis
     writeLBS $ A.encode $ A.toJSON $ Combined $
-        Stats gcStats counterList gaugeList time
+        Stats gcStats counterList gaugeList labelList time
 
 -- | Serve a single counter, as plain text.
-serveOne :: Ref r => IORef (M.HashMap T.Text r) -> Snap ()
+serveOne :: (Ref r t, Show t) => IORef (M.HashMap T.Text r) -> Snap ()
 serveOne refs = do
     modifyResponse $ setContentType "text/plain"
     m <- liftIO $ readIORef refs
