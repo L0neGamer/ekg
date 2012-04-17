@@ -4,15 +4,15 @@ $(document).ready(function () {
     // Number formatters
     function commaify(n)
     {
-	var nStr = n.toString();
-	var x = nStr.split('.');
-	var x1 = x[0];
-	var x2 = x.length > 1 ? '.' + x[1] : '';
-	var rgx = /(\d+)(\d{3})/;
-	while (rgx.test(x1)) {
-	    x1 = x1.replace(rgx, '$1' + ',' + '$2');
-	}
-	return x1 + x2;
+        var nStr = n.toString();
+        var x = nStr.split('.');
+        var x1 = x[0];
+        var x2 = x.length > 1 ? '.' + x[1] : '';
+        var rgx = /(\d+)(\d{3})/;
+        while (rgx.test(x1)) {
+            x1 = x1.replace(rgx, '$1' + ',' + '$2');
+        }
+        return x1 + x2;
     }
 
     function formatSuffix(val, opt_prec) {
@@ -94,7 +94,7 @@ $(document).ready(function () {
 
     // Fetch data periodically and notify interested parties.
     var listeners = [];
-    
+
     function subscribe(fn) {
         listeners.push(fn);
     }
