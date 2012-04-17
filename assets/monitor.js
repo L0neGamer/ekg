@@ -132,7 +132,7 @@ $(document).ready(function () {
         });
 
         setTimeout(fetchData, updateInterval);
-    };
+    }
     fetchData();
 
     function addPlot(elem, series, opts) {
@@ -140,7 +140,7 @@ $(document).ready(function () {
             series: { shadowSize: 0 },  // drawing is faster without shadows
             xaxis: { mode: "time", tickSize: [10, "second"] }
         };
-        var options = $.extend(true, {}, defaultOptions, opts)
+        var options = $.extend(true, {}, defaultOptions, opts);
         var data = new Array(series.length);
         var maxPoints = 60;
         for(var i = 0; i < series.length; i++) {
@@ -161,7 +161,7 @@ $(document).ready(function () {
             }
 
             // zip lengends with data
-            var res = []
+            var res = [];
             for(var i = 0; i < series.length; i++)
                 res.push({ label: series[i].label, data: data[i] });
 
@@ -300,7 +300,7 @@ $(document).ready(function () {
             var gc_seconds = stats.counters.gc_wall_seconds -
                 prev_stats.counters.gc_wall_seconds;
             return 100 * mutator_seconds / (mutator_seconds + gc_seconds);
-        }
+        };
         var productivity_cpu_percent = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
@@ -309,14 +309,14 @@ $(document).ready(function () {
             var gc_seconds = stats.counters.gc_cpu_seconds -
                 prev_stats.counters.gc_cpu_seconds;
             return 100 * mutator_seconds / (mutator_seconds + gc_seconds);
-        }
+        };
         var allocation_rate = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
             return 1000 * (stats.counters.bytes_allocated -
                            prev_stats.counters.bytes_allocated) /
                 (time - prev_time);
-        }
+        };
 
         // Plots
         addPlot($("#current-bytes-used-plot > div"),
@@ -331,13 +331,13 @@ $(document).ready(function () {
                 { yaxis: { tickDecimals: 1, tickFormatter: percentFormatter } });
 
         // Counters
-        addCounter($("#max-bytes-used"), max_bytes_used, formatSuffix)
-        addCounter($("#current-bytes-used"), current_bytes_used, formatSuffix)
-        addCounter($("#max-bytes-slop"), max_bytes_slop, formatSuffix)
-        addCounter($("#current-bytes-slop"), current_bytes_slop, formatSuffix)
-        addCounter($("#productivity-wall"), productivity_wall_percent, formatPercent)
-        addCounter($("#productivity-cpu"), productivity_cpu_percent, formatPercent)
-        addCounter($("#allocation-rate"), allocation_rate, formatRate)
+        addCounter($("#max-bytes-used"), max_bytes_used, formatSuffix);
+        addCounter($("#current-bytes-used"), current_bytes_used, formatSuffix);
+        addCounter($("#max-bytes-slop"), max_bytes_slop, formatSuffix);
+        addCounter($("#current-bytes-slop"), current_bytes_slop, formatSuffix);
+        addCounter($("#productivity-wall"), productivity_wall_percent, formatPercent);
+        addCounter($("#productivity-cpu"), productivity_cpu_percent, formatPercent);
+        addCounter($("#allocation-rate"), allocation_rate, formatRate);
 
         addDynamicCounters($("#counter-table"), function (stats) {
             return stats.counters;
