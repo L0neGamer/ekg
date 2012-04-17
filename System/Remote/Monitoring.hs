@@ -246,7 +246,7 @@ forkServer host port = do
 -- >             loop
 -- >     loop
 --
--- To create a guage, use 'getGauge' instead of 'getCounter' and then
+-- To create a gauge, use 'getGauge' instead of 'getCounter' and then
 -- call e.g. 'System.Remote.Gauge.set' or
 -- 'System.Remote.Gauge.modify'.
 
