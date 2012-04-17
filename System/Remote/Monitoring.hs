@@ -1,4 +1,5 @@
-{-# LANGUAGE ExistentialQuantification, OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE ExistentialQuantification, OverloadedStrings, RecordWildCards,
+  FunctionalDependencies #-}
 -- | This module provides remote monitoring of a running process over
 -- HTTP.  It can be used to run an HTTP server that provides both a
 -- web-based user interface and a machine-readable API (e.g. JSON).
@@ -250,22 +251,22 @@ forkServer host port = do
 -- call e.g. 'System.Remote.Gauge.set' or
 -- 'System.Remote.Gauge.modify'.
 
-class Ref r where
+class Ref r t | r -> t where
     new :: IO r
-    read :: r -> IO Int
+    read :: r -> IO t
 
-instance Ref Counter where
+instance Ref Counter Int where
     new = Counter.new
     read = Counter.read
 
-instance Ref Gauge where
+instance Ref Gauge Int where
     new = Gauge.new
     read = Gauge.read
 
 -- | Lookup a 'Ref' by name in the given map.  If no 'Ref' exists
 -- under the given name, create a new one, insert it into the map and
 -- return it.
-getRef :: Ref r
+getRef :: Ref r t
        => T.Text                      -- ^ 'Ref' name
        -> IORef (M.HashMap T.Text r)  -- ^ Server that will serve the 'Ref'
        -> IO r
@@ -401,7 +402,7 @@ format fmt action = do
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: Ref r => IORef (M.HashMap T.Text r) -> IO [(T.Text, Json)]
+readAllRefs :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r) -> IO [(T.Text, Json)]
 readAllRefs mapRef = do
     m <- readIORef mapRef
     forM (M.toList m) $ \ (name, ref) -> do
@@ -410,7 +411,7 @@ readAllRefs mapRef = do
 {-# INLINABLE readAllRefs #-}
 
 -- | Serve a collection of counters or gauges, as a JSON object.
-serveMany :: Ref r => IORef (M.HashMap T.Text r) -> Snap ()
+serveMany :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r) -> Snap ()
 serveMany mapRef = do
     list <- liftIO $ readAllRefs mapRef
     modifyResponse $ setContentType "application/json"
@@ -447,7 +448,7 @@ serveCombined counters gauges = do
         Stats gcStats counterList gaugeList time
 
 -- | Serve a single counter, as plain text.
-serveOne :: Ref r => IORef (M.HashMap T.Text r) -> Snap ()
+serveOne :: (Ref r t, Show t) => IORef (M.HashMap T.Text r) -> Snap ()
 serveOne refs = do
     modifyResponse $ setContentType "text/plain"
     m <- liftIO $ readIORef refs
