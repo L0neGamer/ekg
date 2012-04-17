@@ -46,6 +46,10 @@ body {
     text-align: right;
 }
 
+.string {
+    text-align: left;
+}
+
 .graph-button {
     cursor: pointer;
     vertical-align: middle;

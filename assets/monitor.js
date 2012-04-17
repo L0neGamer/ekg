@@ -255,6 +255,29 @@ $(document).ready(function () {
         subscribe(onDataReceived);
     }
 
+    function addDynamicLabels(table, group_fn) {
+        var labels = {};
+        function onDataReceived(stats, time) {
+            $.each(group_fn(stats), function (key, value) {
+                var elem;
+                if (key in labels) {
+                    elem = labels[key];
+                } else {
+                    // Add UI element
+                    table.find("tbody:last").append(
+                        '<tr><td>' + key + '</td>' +
+                            '<td class="string">N/A</td></tr>');
+                    elem = table.find("tbody > tr > td:last");
+                    labels[key] = elem;
+                }
+                if (!paused)
+                    elem.text(value);
+            });
+        }
+
+        subscribe(onDataReceived);
+    }
+
     function initAll() {
         // Metrics
         var current_bytes_used = function (stats) {
@@ -333,6 +356,10 @@ $(document).ready(function () {
             return stats.gauges[key];
         }, function (label) {
             return label;
+        });
+
+        addDynamicLabels($("#label-table"), function (stats) {
+            return stats.labels;
         });
     }
 
