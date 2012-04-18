@@ -1,3 +1,10 @@
+## 0.3.1.0 (2012-04-17)
+
+ * Add labels, which are free-form string values exported by the
+   monitoring server.  Labels allow you to export e.g. the command
+   line arguments used to start the executable or the host name it's
+   running on.
+
 ## 0.3.0.4 (2012-04-03)
 
  * Add original JavaScript files to tarball to ease distribution
