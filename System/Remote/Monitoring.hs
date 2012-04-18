@@ -100,8 +100,8 @@ import qualified System.Remote.Label.Internal as Label
 -- @gauges@ attributes, respectively.  Content types: \"text\/html\"
 -- (default), \"application\/json\"
 --
--- [\/combined] Flattened JSON object containing all counters and
--- gauges.  Content types: \"application\/json\"
+-- [\/combined] Flattened JSON object containing all counters, gauges,
+-- and labels.  Content types: \"application\/json\"
 --
 -- [\/counters] JSON object containing all counters.  Content types:
 -- \"application\/json\"
