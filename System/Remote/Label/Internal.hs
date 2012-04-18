@@ -10,10 +10,10 @@ import Data.IORef (IORef, newIORef, readIORef)
 import qualified Data.Text as T
 import Prelude hiding (read)
 
--- | A mutable, integer-valued label.
+-- | A mutable, text-valued label.
 newtype Label = C { unC :: IORef T.Text }
 
--- | Create a new, null initialized, label.
+-- | Create a new empty label.
 new :: IO Label
 new = C `fmap` newIORef T.empty
 

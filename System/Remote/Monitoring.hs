@@ -2,9 +2,9 @@
   FunctionalDependencies #-}
 -- | This module provides remote monitoring of a running process over
 -- HTTP.  It can be used to run an HTTP server that provides both a
--- web-based user interface and a machine-readable API (e.g. JSON).
+-- web-based user interface and a machine-readable API (e.g. JSON.)
 -- The former can be used by a human to get an overview of what the
--- program is doing and the latter can be used be automated monitoring
+-- program is doing and the latter can be used by automated monitoring
 -- tools.
 --
 -- Typical usage is to start the monitoring server at program startup
@@ -30,7 +30,7 @@ module System.Remote.Monitoring
     , serverThreadId
     , forkServer
 
-      -- * User-defined counters and gauges
+      -- * User-defined counters, gauges, and labels
       -- $userdefined
     , getCounter
     , getGauge
@@ -124,7 +124,7 @@ import qualified System.Remote.Label.Internal as Label
 --
 -- Counters, gauges and labels are stored as attributes of the
 -- returned JSON objects, one attribute per counter, gauge or label.
--- In addition to user-defined counters, gauges and labels, the below
+-- In addition to user-defined counters, gauges, and labels, the below
 -- built-in counters and gauges are also returned.  Furthermore, the
 -- top-level JSON object of any resource contains the
 -- @server_timestamp_millis@ attribute, which indicates the server
@@ -211,7 +211,7 @@ serverThreadId = threadId
 -- | Start an HTTP server in a new thread.  The server replies to GET
 -- requests to the given host and port.  The host argument can be
 -- either a numeric network address (dotted quad for IPv4,
--- colon-separated hex for IPv6) or a hostname (e.g. \"localhost\").
+-- colon-separated hex for IPv6) or a hostname (e.g. \"localhost\".)
 -- The client can control the Content-Type used in responses by
 -- setting the Accept header.  At the moment three content types are
 -- available: \"application\/json\", \"text\/html\", and
@@ -239,12 +239,12 @@ forkServer host port = do
 -- The monitoring server can store and serve user-defined,
 -- integer-valued counters and gauges, and string-value labels.  A
 -- counter is a monotonically increasing value (e.g. TCP connections
--- established since program start). A gauge is a variable value
--- (e.g. the current number of concurrent connections). A label is
--- simply a string value, free-form (e.g. exporting the command line
--- arguments or host name). Each counter or gauge is associated with a
--- name, which is used when the counter or gauge is displayed in the
--- UI or returned in a JSON object.
+-- established since program start.) A gauge is a variable value
+-- (e.g. the current number of concurrent connections.) A label is a
+-- free-form string value (e.g. exporting the command line arguments
+-- or host name.)  Each counter, gauge, and label is associated with a
+-- name, which is used when it is displayed in the UI or returned in a
+-- JSON object.
 --
 -- Even though it's technically possible to have a counter and a gauge
 -- with the same name, associated with the same server, it's not
@@ -265,7 +265,7 @@ forkServer host port = do
 --
 -- To create a gauge, use 'getGauge' instead of 'getCounter' and then
 -- call e.g. 'System.Remote.Gauge.set' or
--- 'System.Remote.Gauge.modify'. Similar for labels.
+-- 'System.Remote.Gauge.modify'.  Similar for labels.
 
 class Ref r t | r -> t where
     new :: IO r
@@ -321,7 +321,7 @@ getGauge name server = getRef name (userGauges server)
 
 -- | Return the label associated with the given name and server.
 -- Multiple calls to 'getLabel' with the same arguments will return
--- the same gauge.  The first time 'getLabel' is called for a given
+-- the same label.  The first time 'getLabel' is called for a given
 -- name and server, a new, empty label will be returned.
 getLabel :: T.Text  -- ^ Label name
          -> Server  -- ^ Server that will serve the label
