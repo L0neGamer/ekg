@@ -19,6 +19,7 @@ data-files:          assets/index.html assets/monitor.js assets/monitor.css
                      assets/chart_line_add.png assets/cross.png
 extra-source-files:  LICENSE.icons LICENSE.javascript README.md
                      assets/jquery-1.6.4.js assets/jquery.flot.js
+                     examples/Basic.hs
 
 library
   exposed-modules:     System.Remote.Counter
