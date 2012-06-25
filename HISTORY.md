@@ -1,3 +1,7 @@
+## 0.3.1.1 (2012-06-25)
+
+ * Bump dependencies.
+
 ## 0.3.1.0 (2012-04-17)
 
  * Add labels, which are free-form string values exported by the
