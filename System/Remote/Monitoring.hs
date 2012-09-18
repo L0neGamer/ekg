@@ -348,60 +348,82 @@ getLabel name server = getRef name (userLabels server)
 -- | All the stats exported by the server (i.e. GC stats plus user
 -- defined counters).
 data Stats = Stats
-    !(Maybe Stats.GCStats)  -- GC statistics
+    !Stats.GCStats          -- GC statistics
     ![(T.Text, Json)]       -- Counters
     ![(T.Text, Json)]       -- Gauges
     ![(T.Text, Json)]       -- Labels
     {-# UNPACK #-} !Double  -- Milliseconds since epoch
 
+emptyGCStats :: Stats.GCStats
+emptyGCStats = Stats.GCStats
+    { bytesAllocated         = 0
+    , numGcs                 = 0
+    , maxBytesUsed           = 0
+    , numByteUsageSamples    = 0
+    , cumulativeBytesUsed    = 0
+    , bytesCopied            = 0
+    , currentBytesUsed       = 0
+    , currentBytesSlop       = 0
+    , maxBytesSlop           = 0
+    , peakMegabytesAllocated = 0
+    , mutatorCpuSeconds      = 0
+    , mutatorWallSeconds     = 0
+    , gcCpuSeconds           = 0
+    , gcWallSeconds          = 0
+    , cpuSeconds             = 0
+    , wallSeconds            = 0
+#if MIN_VERSION_base(4,6,0)
+    , parTotBytesCopied      = 0
+#else
+    , parAvgBytesCopied      = 0
+#endif
+    , parMaxBytesCopied      = 0
+    }
+
 instance A.ToJSON Stats where
-    toJSON (Stats maybeGcStats counters gauges labels t) = A.object $
+    toJSON (Stats gcStats counters gauges labels t) = A.object $
         [ "server_timestamp_millis" .= t
         , "counters"                .= Assocs (gcCounters ++ counters)
         , "gauges"                  .= Assocs (gcGauges ++ gauges)
         , "labels"                  .= Assocs (labels)
         ]
       where
-        (gcCounters, gcGauges) = partitionGcStats maybeGcStats
+        (gcCounters, gcGauges) = partitionGcStats gcStats
 
 -- | 'Stats' encoded as a flattened JSON object.
 newtype Combined = Combined Stats
 
 instance A.ToJSON Combined where
-    toJSON (Combined (Stats maybeGcStats counters gauges labels t)) =
+    toJSON (Combined (Stats (Stats.GCStats {..}) counters gauges labels t)) =
         A.object $
-        gcCombined ++ map (uncurry (.=)) counters ++
+        [ "server_timestamp_millis"  .= t
+        , "bytes_allocated"          .= bytesAllocated
+        , "num_gcs"                  .= numGcs
+        , "max_bytes_used"           .= maxBytesUsed
+        , "num_bytes_usage_samples"  .= numByteUsageSamples
+        , "cumulative_bytes_used"    .= cumulativeBytesUsed
+        , "bytes_copied"             .= bytesCopied
+        , "current_bytes_used"       .= currentBytesUsed
+        , "current_bytes_slop"       .= currentBytesSlop
+        , "max_bytes_slop"           .= maxBytesSlop
+        , "peak_megabytes_allocated" .= peakMegabytesAllocated
+        , "mutator_cpu_seconds"      .= mutatorCpuSeconds
+        , "mutator_wall_seconds"     .= mutatorWallSeconds
+        , "gc_cpu_seconds"           .= gcCpuSeconds
+        , "gc_wall_seconds"          .= gcWallSeconds
+        , "cpu_seconds"              .= cpuSeconds
+        , "wall_seconds"             .= wallSeconds
+#if MIN_VERSION_base(4,6,0)
+        , "par_tot_bytes_copied"     .= parTotBytesCopied
+        , "par_avg_bytes_copied"     .= parTotBytesCopied
+#else
+        , "par_avg_bytes_copied"     .= parAvgBytesCopied
+#endif
+        , "par_max_bytes_copied"     .= parMaxBytesCopied
+        ] ++
+        map (uncurry (.=)) counters ++
         map (uncurry (.=)) gauges ++
         map (uncurry (.=)) labels
-      where
-        gcCombined = case maybeGcStats of
-            Nothing -> []
-            Just (Stats.GCStats {..}) ->
-                [ "server_timestamp_millis"  .= t
-                , "bytes_allocated"          .= bytesAllocated
-                , "num_gcs"                  .= numGcs
-                , "max_bytes_used"           .= maxBytesUsed
-                , "num_bytes_usage_samples"  .= numByteUsageSamples
-                , "cumulative_bytes_used"    .= cumulativeBytesUsed
-                , "bytes_copied"             .= bytesCopied
-                , "current_bytes_used"       .= currentBytesUsed
-                , "current_bytes_slop"       .= currentBytesSlop
-                , "max_bytes_slop"           .= maxBytesSlop
-                , "peak_megabytes_allocated" .= peakMegabytesAllocated
-                , "mutator_cpu_seconds"      .= mutatorCpuSeconds
-                , "mutator_wall_seconds"     .= mutatorWallSeconds
-                , "gc_cpu_seconds"           .= gcCpuSeconds
-                , "gc_wall_seconds"          .= gcWallSeconds
-                , "cpu_seconds"              .= cpuSeconds
-                , "wall_seconds"             .= wallSeconds
-#if MIN_VERSION_base(4,6,0)
-                , "par_tot_bytes_copied"     .= parTotBytesCopied
-                , "par_avg_bytes_copied"     .= parTotBytesCopied
-#else
-                , "par_avg_bytes_copied"     .= parAvgBytesCopied
-#endif
-                , "par_max_bytes_copied"     .= parMaxBytesCopied
-                ]
 
 -- | A list of string keys and JSON-encodable values.  Used to render
 -- a list of key-value pairs as a JSON object.
@@ -480,15 +502,15 @@ serveMany mapRef = do
     writeLBS $ A.encode $ A.toJSON $ Group list time
 {-# INLINABLE serveMany #-}
 
-maybeGetGcStats :: IO (Maybe Stats.GCStats)
-maybeGetGcStats = do
+getGcStats :: IO Stats.GCStats
+getGcStats = do
 #if MIN_VERSION_base(4,6,0)
     enabled <- Stats.getGCStatsEnabled
     if enabled
-        then Just `fmap` Stats.getGCStats
-        else return Nothing
+        then Stats.getGCStats
+        else return emptyGCStats
 #else
-    Just `fmap` Stats.getGCStats
+    Stats.getGCStats
 #endif
 
 -- | Serve all counter, gauges and labels, built-in or not, as a
@@ -501,12 +523,12 @@ serveAll counters gauges labels = do
     -- requests ought to go to the 'serveOne' handler.
     unless (S.null $ rqPathInfo req) pass
     modifyResponse $ setContentType "application/json"
-    maybeGcStats <- liftIO maybeGetGcStats
+    gcStats <- liftIO getGcStats
     counterList <- liftIO $ readAllRefs counters
     gaugeList <- liftIO $ readAllRefs gauges
     labelList <- liftIO $ readAllRefs labels
     time <- liftIO getTimeMillis
-    writeLBS $ A.encode $ A.toJSON $ Stats maybeGcStats counterList gaugeList
+    writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList
         labelList time
 
 -- | Serve all counters and gauges, built-in or not, as a flattened
@@ -514,13 +536,13 @@ serveAll counters gauges labels = do
 serveCombined :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
 serveCombined counters gauges labels = do
     modifyResponse $ setContentType "application/json"
-    maybeGcStats <- liftIO maybeGetGcStats
+    gcStats <- liftIO getGcStats
     counterList <- liftIO $ readAllRefs counters
     gaugeList <- liftIO $ readAllRefs gauges
     labelList <- liftIO $ readAllRefs labels
     time <- liftIO getTimeMillis
     writeLBS $ A.encode $ A.toJSON $ Combined $
-        Stats maybeGcStats counterList gaugeList labelList time
+        Stats gcStats counterList gaugeList labelList time
 
 -- | Serve a single counter, as plain text.
 serveOne :: (Ref r t, Show t) => IORef (M.HashMap T.Text r) -> Snap ()
@@ -540,16 +562,12 @@ serveOne refs = do
                 -- Try built-in (e.g. GC) refs
                 case Map.lookup name builtinCounters of
                     Just f -> do
-                        maybeGcStats <- liftIO maybeGetGcStats
-                        case maybeGcStats of
-                            Nothing      -> notFound
-                            Just gcStats -> writeBS $ S8.pack $ f gcStats
-                    Nothing -> notFound
-  where
-    notFound = do
-        modifyResponse $ setResponseStatus 404 "Not Found"
-        r <- getResponse
-        finishWith r
+                        gcStats <- liftIO getGcStats
+                        writeBS $ S8.pack $ f gcStats
+                    Nothing -> do
+                        modifyResponse $ setResponseStatus 404 "Not Found"
+                        r <- getResponse
+                        finishWith r
 {-# INLINABLE serveOne #-}
 
 -- | A list of all built-in (e.g. GC) counters, together with a
@@ -588,10 +606,8 @@ instance A.ToJSON Json where
     toJSON (Json x) = A.toJSON x
 
 -- | Partition GC statistics into counters and gauges.
-partitionGcStats :: Maybe Stats.GCStats
-                 -> ([(T.Text, Json)], [(T.Text, Json)])
-partitionGcStats Nothing = ([], [])
-partitionGcStats (Just (Stats.GCStats {..})) = (counters, gauges)
+partitionGcStats :: Stats.GCStats -> ([(T.Text, Json)], [(T.Text, Json)])
+partitionGcStats (Stats.GCStats {..}) = (counters, gauges)
   where
     counters = [
           ("bytes_allocated"          , Json bytesAllocated)
