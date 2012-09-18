@@ -348,55 +348,60 @@ getLabel name server = getRef name (userLabels server)
 -- | All the stats exported by the server (i.e. GC stats plus user
 -- defined counters).
 data Stats = Stats
-    !Stats.GCStats          -- GC statistics
+    !(Maybe Stats.GCStats)  -- GC statistics
     ![(T.Text, Json)]       -- Counters
     ![(T.Text, Json)]       -- Gauges
     ![(T.Text, Json)]       -- Labels
     {-# UNPACK #-} !Double  -- Milliseconds since epoch
 
 instance A.ToJSON Stats where
-    toJSON (Stats gcStats@(Stats.GCStats {..}) counters gauges labels t) = A.object $
+    toJSON (Stats maybeGcStats counters gauges labels t) = A.object $
         [ "server_timestamp_millis" .= t
         , "counters"                .= Assocs (gcCounters ++ counters)
         , "gauges"                  .= Assocs (gcGauges ++ gauges)
         , "labels"                  .= Assocs (labels)
         ]
       where
-        (gcCounters, gcGauges) = partitionGcStats gcStats
+        (gcCounters, gcGauges) = partitionGcStats maybeGcStats
 
 -- | 'Stats' encoded as a flattened JSON object.
 newtype Combined = Combined Stats
 
 instance A.ToJSON Combined where
-    toJSON (Combined (Stats (Stats.GCStats {..}) counters gauges labels t)) =
+    toJSON (Combined (Stats maybeGcStats counters gauges labels t)) =
         A.object $
-        [ "server_timestamp_millis"  .= t
-        , "bytes_allocated"          .= bytesAllocated
-        , "num_gcs"                  .= numGcs
-        , "max_bytes_used"           .= maxBytesUsed
-        , "num_bytes_usage_samples"  .= numByteUsageSamples
-        , "cumulative_bytes_used"    .= cumulativeBytesUsed
-        , "bytes_copied"             .= bytesCopied
-        , "current_bytes_used"       .= currentBytesUsed
-        , "current_bytes_slop"       .= currentBytesSlop
-        , "max_bytes_slop"           .= maxBytesSlop
-        , "peak_megabytes_allocated" .= peakMegabytesAllocated
-        , "mutator_cpu_seconds"      .= mutatorCpuSeconds
-        , "mutator_wall_seconds"     .= mutatorWallSeconds
-        , "gc_cpu_seconds"           .= gcCpuSeconds
-        , "gc_wall_seconds"          .= gcWallSeconds
-        , "cpu_seconds"              .= cpuSeconds
-        , "wall_seconds"             .= wallSeconds
-#if MIN_VERSION_base(4,6,0)
-        , "par_tot_bytes_copied"     .= parTotBytesCopied
-        , "par_avg_bytes_copied"     .= parTotBytesCopied
-#else
-        , "par_avg_bytes_copied"     .= parAvgBytesCopied
-#endif
-        , "par_max_bytes_copied"     .= parMaxBytesCopied
-        ] ++ map (uncurry (.=)) counters ++
+        gcCombined ++ map (uncurry (.=)) counters ++
         map (uncurry (.=)) gauges ++
         map (uncurry (.=)) labels
+      where
+        gcCombined = case maybeGcStats of
+            Nothing -> []
+            Just (Stats.GCStats {..}) ->
+                [ "server_timestamp_millis"  .= t
+                , "bytes_allocated"          .= bytesAllocated
+                , "num_gcs"                  .= numGcs
+                , "max_bytes_used"           .= maxBytesUsed
+                , "num_bytes_usage_samples"  .= numByteUsageSamples
+                , "cumulative_bytes_used"    .= cumulativeBytesUsed
+                , "bytes_copied"             .= bytesCopied
+                , "current_bytes_used"       .= currentBytesUsed
+                , "current_bytes_slop"       .= currentBytesSlop
+                , "max_bytes_slop"           .= maxBytesSlop
+                , "peak_megabytes_allocated" .= peakMegabytesAllocated
+                , "mutator_cpu_seconds"      .= mutatorCpuSeconds
+                , "mutator_wall_seconds"     .= mutatorWallSeconds
+                , "gc_cpu_seconds"           .= gcCpuSeconds
+                , "gc_wall_seconds"          .= gcWallSeconds
+                , "cpu_seconds"              .= cpuSeconds
+                , "wall_seconds"             .= wallSeconds
+#if MIN_VERSION_base(4,6,0)
+                , "par_tot_bytes_copied"     .= parTotBytesCopied
+                , "par_avg_bytes_copied"     .= parTotBytesCopied
+#else
+                , "par_avg_bytes_copied"     .= parAvgBytesCopied
+#endif
+                , "par_max_bytes_copied"     .= parMaxBytesCopied
+                ]
 
 -- | A list of string keys and JSON-encodable values.  Used to render
 -- a list of key-value pairs as a JSON object.
@@ -457,7 +462,8 @@ format fmt action = do
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r) -> IO [(T.Text, Json)]
+readAllRefs :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r)
+            -> IO [(T.Text, Json)]
 readAllRefs mapRef = do
     m <- readIORef mapRef
     forM (M.toList m) $ \ (name, ref) -> do
@@ -474,6 +480,17 @@ serveMany mapRef = do
     writeLBS $ A.encode $ A.toJSON $ Group list time
 {-# INLINABLE serveMany #-}
 
+maybeGetGcStats :: IO (Maybe Stats.GCStats)
+maybeGetGcStats = do
+#if MIN_VERSION_base(4,6,0)
+    enabled <- Stats.getGCStatsEnabled
+    if enabled
+        then Just `fmap` Stats.getGCStats
+        else return Nothing
+#else
+    Just `fmap` Stats.getGCStats
+#endif
+
 -- | Serve all counter, gauges and labels, built-in or not, as a
 -- nested JSON object.
 serveAll :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
@@ -484,25 +501,26 @@ serveAll counters gauges labels = do
     -- requests ought to go to the 'serveOne' handler.
     unless (S.null $ rqPathInfo req) pass
     modifyResponse $ setContentType "application/json"
-    gcStats <- liftIO Stats.getGCStats
+    maybeGcStats <- liftIO maybeGetGcStats
     counterList <- liftIO $ readAllRefs counters
     gaugeList <- liftIO $ readAllRefs gauges
     labelList <- liftIO $ readAllRefs labels
     time <- liftIO getTimeMillis
-    writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList labelList time
+    writeLBS $ A.encode $ A.toJSON $ Stats maybeGcStats counterList gaugeList
+        labelList time
 
 -- | Serve all counters and gauges, built-in or not, as a flattened
 -- JSON object.
 serveCombined :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
 serveCombined counters gauges labels = do
     modifyResponse $ setContentType "application/json"
-    gcStats <- liftIO Stats.getGCStats
+    maybeGcStats <- liftIO maybeGetGcStats
     counterList <- liftIO $ readAllRefs counters
     gaugeList <- liftIO $ readAllRefs gauges
     labelList <- liftIO $ readAllRefs labels
     time <- liftIO getTimeMillis
     writeLBS $ A.encode $ A.toJSON $ Combined $
-        Stats gcStats counterList gaugeList labelList time
+        Stats maybeGcStats counterList gaugeList labelList time
 
 -- | Serve a single counter, as plain text.
 serveOne :: (Ref r t, Show t) => IORef (M.HashMap T.Text r) -> Snap ()
@@ -522,12 +540,16 @@ serveOne refs = do
                 -- Try built-in (e.g. GC) refs
                 case Map.lookup name builtinCounters of
                     Just f -> do
-                        gcStats <- liftIO Stats.getGCStats
-                        writeBS $ S8.pack $ f gcStats
-                    Nothing -> do
-                        modifyResponse $ setResponseStatus 404 "Not Found"
-                        r <- getResponse
-                        finishWith r
+                        maybeGcStats <- liftIO maybeGetGcStats
+                        case maybeGcStats of
+                            Nothing      -> notFound
+                            Just gcStats -> writeBS $ S8.pack $ f gcStats
+                    Nothing -> notFound
+  where
+    notFound = do
+        modifyResponse $ setResponseStatus 404 "Not Found"
+        r <- getResponse
+        finishWith r
 {-# INLINABLE serveOne #-}
 
 -- | A list of all built-in (e.g. GC) counters, together with a
@@ -566,9 +588,10 @@ instance A.ToJSON Json where
     toJSON (Json x) = A.toJSON x
 
 -- | Partition GC statistics into counters and gauges.
-partitionGcStats :: Stats.GCStats
+partitionGcStats :: Maybe Stats.GCStats
                  -> ([(T.Text, Json)], [(T.Text, Json)])
-partitionGcStats (Stats.GCStats {..}) = (counters, gauges)
+partitionGcStats Nothing = ([], [])
+partitionGcStats (Just (Stats.GCStats {..})) = (counters, gauges)
   where
     counters = [
           ("bytes_allocated"          , Json bytesAllocated)
