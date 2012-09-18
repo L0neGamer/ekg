@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, OverloadedStrings, RecordWildCards,
+{-# LANGUAGE CPP, ExistentialQuantification, OverloadedStrings, RecordWildCards,
   FunctionalDependencies #-}
 -- | This module provides remote monitoring of a running process over
 -- HTTP.  It can be used to run an HTTP server that provides both a
@@ -171,14 +171,28 @@ import qualified System.Remote.Label.Internal as Label
 --
 -- [@peak_megabytes_allocated@] Maximum number of megabytes allocated
 --
--- [@par_avg_bytes_copied@] Number of bytes copied during GC, minus
+#if MIN_VERSION_base(4,6,0)
+-- [@par_tot_bytes_copied@] Number of bytes copied during GC, minus
 -- space held by mutable lists held by the capabilities.  Can be used
 -- with 'parMaxBytesCopied' to determine how well parallel GC utilized
 -- all cores.
 --
+-- [@par_avg_bytes_copied@] Deprecated alias for
+-- @par_tot_bytes_copied@.
+#else
+-- [@par_avg_bytes_copied@] Number of bytes copied during GC, minus
+-- space held by mutable lists held by the capabilities.  Can be used
+-- with 'parMaxBytesCopied' to determine how well parallel GC utilized
+-- all cores.
+#endif
+--
 -- [@par_max_bytes_copied@] Sum of number of bytes copied each GC by
 -- the most active GC thread each GC.  The ratio of
+#if MIN_VERSION_base(4,6,0)
+-- 'parTotBytesCopied' divided by 'parMaxBytesCopied' approaches 1 for
+#else
 -- 'parAvgBytesCopied' divided by 'parMaxBytesCopied' approaches 1 for
+#endif
 -- a maximally sequential run and approaches the number of threads
 -- (set by the RTS flag @-N@) for a maximally parallel run.
 
@@ -373,7 +387,12 @@ instance A.ToJSON Combined where
         , "gc_wall_seconds"          .= gcWallSeconds
         , "cpu_seconds"              .= cpuSeconds
         , "wall_seconds"             .= wallSeconds
+#if MIN_VERSION_base(4,6,0)
+        , "par_tot_bytes_copied"     .= parTotBytesCopied
+        , "par_avg_bytes_copied"     .= parTotBytesCopied
+#else
         , "par_avg_bytes_copied"     .= parAvgBytesCopied
+#endif
         , "par_max_bytes_copied"     .= parMaxBytesCopied
         ] ++ map (uncurry (.=)) counters ++
         map (uncurry (.=)) gauges ++
@@ -531,7 +550,12 @@ builtinCounters = Map.fromList [
     , ("gc_wall_seconds"          , show . Stats.gcWallSeconds)
     , ("cpu_seconds"              , show . Stats.cpuSeconds)
     , ("wall_seconds"             , show . Stats.wallSeconds)
+#if MIN_VERSION_base(4,6,0)
+    , ("par_tot_bytes_copied"     , show . Stats.parTotBytesCopied)
+    , ("par_avg_bytes_copied"     , show . Stats.parTotBytesCopied)
+#else
     , ("par_avg_bytes_copied"     , show . Stats.parAvgBytesCopied)
+#endif
     , ("par_max_bytes_copied"     , show . Stats.parMaxBytesCopied)
     ]
 
@@ -565,7 +589,12 @@ partitionGcStats (Stats.GCStats {..}) = (counters, gauges)
         , ("current_bytes_slop"       , Json currentBytesSlop)
         , ("max_bytes_slop"           , Json maxBytesSlop)
         , ("peak_megabytes_allocated" , Json peakMegabytesAllocated)
+#if MIN_VERSION_base(4,6,0)
+        , ("par_tot_bytes_copied"     , Json parTotBytesCopied)
+        , ("par_avg_bytes_copied"     , Json parTotBytesCopied)
+#else
         , ("par_avg_bytes_copied"     , Json parAvgBytesCopied)
+#endif
         , ("par_max_bytes_copied"     , Json parMaxBytesCopied)
         ]
 
