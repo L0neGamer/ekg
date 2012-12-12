@@ -473,6 +473,8 @@ monitor counters gauges labels = do
                                              writeBS $(embedFile "assets/chart_line_add.png")))
         , ("cross.png", method GET (modifyResponse (setContentType "image/png") >>
                                     writeBS $(embedFile "assets/cross.png")))
+        , ("", method GET (modifyResponse (setContentType "text/html") >>
+                                     writeBS $(embedFile "assets/index.html")))
         , ("index.html", method GET (modifyResponse (setContentType "text/html") >>
                                      writeBS $(embedFile "assets/index.html")))
         , ("jquery-1.6.4.js", method GET (modifyResponse (setContentType "application/javascript") >>
