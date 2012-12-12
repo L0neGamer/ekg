@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP, ExistentialQuantification, OverloadedStrings, RecordWildCards,
-  FunctionalDependencies #-}
+  FunctionalDependencies, TemplateHaskell #-}
 -- | This module provides remote monitoring of a running process over
 -- HTTP.  It can be used to run an HTTP server that provides both a
 -- web-based user interface and a machine-readable API (e.g. JSON.)
@@ -56,6 +56,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Data.Word (Word8)
+import Data.FileEmbed (embedFile)
 import qualified GHC.Stats as Stats
 import Paths_ekg (getDataDir)
 import Prelude hiding (read)
@@ -465,8 +466,28 @@ monitor counters gauges labels = do
                                  (serveMany labels)))
         , ("labels/:name", method GET (format "text/plain"
                                        (serveOne labels)))
+
+        , ("bootstrap-1.4.0.min.css", method GET (modifyResponse (setContentType "text/css") >>
+                                                  writeBS $(embedFile "assets/bootstrap-1.4.0.min.css")))
+        , ("chart_line_add.png", method GET (modifyResponse (setContentType "image/png") >>
+                                             writeBS $(embedFile "assets/chart_line_add.png")))
+        , ("cross.png", method GET (modifyResponse (setContentType "image/png") >>
+                                    writeBS $(embedFile "assets/cross.png")))
+        , ("index.html", method GET (modifyResponse (setContentType "text/html") >>
+                                     writeBS $(embedFile "assets/index.html")))
+        , ("jquery-1.6.4.js", method GET (modifyResponse (setContentType "application/javascript") >>
+                                          writeBS $(embedFile "assets/jquery-1.6.4.js")))
+        , ("jquery-1.6.4.min.js", method GET (modifyResponse (setContentType "application/javascript") >>
+                                              writeBS $(embedFile "assets/jquery-1.6.4.min.js")))
+        , ("jquery.flot.js", method GET (modifyResponse (setContentType "application/javascript") >>
+                                         writeBS $(embedFile "assets/jquery.flot.js")))
+        , ("jquery.flot.min.js", method GET (modifyResponse (setContentType "application/javascript") >>
+                                             writeBS $(embedFile "assets/jquery.flot.min.js")))
+        , ("monitor.css", method GET (modifyResponse (setContentType "text/css") >>
+                                      writeBS $(embedFile "assets/monitor.css")))
+        , ("monitor.js", method GET (modifyResponse (setContentType "application/javascript") >>
+                                     writeBS $(embedFile "assets/monitor.js")))
         ]
-        <|> serveDirectory (dataDir </> "assets")
 
 -- | The Accept header of the request.
 acceptHeader :: Request -> Maybe S.ByteString
