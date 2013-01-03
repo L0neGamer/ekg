@@ -28,9 +28,11 @@ library
                        System.Remote.Monitoring
 
   other-modules:       Paths_ekg
+                       System.Remote.Common
                        System.Remote.Counter.Internal
                        System.Remote.Gauge.Internal
                        System.Remote.Label.Internal
+                       System.Remote.Snap
 
   build-depends:       aeson < 0.7,
                        base >= 4.5 && < 5,
