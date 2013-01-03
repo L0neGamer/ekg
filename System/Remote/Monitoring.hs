@@ -46,6 +46,7 @@ import Data.Aeson.Types ((.=))
 import qualified Data.Aeson.Types as A
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Lazy as L
 import Data.Function (on)
 import qualified Data.HashMap.Strict as M
 import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
@@ -496,10 +497,9 @@ readAllRefs mapRef = do
 -- | Serve a collection of counters or gauges, as a JSON object.
 serveMany :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r) -> Snap ()
 serveMany mapRef = do
-    list <- liftIO $ readAllRefs mapRef
     modifyResponse $ setContentType "application/json"
-    time <- liftIO getTimeMillis
-    writeLBS $ A.encode $ A.toJSON $ Group list time
+    bs <- liftIO $ buildMany mapRef
+    writeLBS bs
 {-# INLINABLE serveMany #-}
 
 getGcStats :: IO Stats.GCStats
@@ -523,52 +523,85 @@ serveAll counters gauges labels = do
     -- requests ought to go to the 'serveOne' handler.
     unless (S.null $ rqPathInfo req) pass
     modifyResponse $ setContentType "application/json"
-    gcStats <- liftIO getGcStats
-    counterList <- liftIO $ readAllRefs counters
-    gaugeList <- liftIO $ readAllRefs gauges
-    labelList <- liftIO $ readAllRefs labels
-    time <- liftIO getTimeMillis
-    writeLBS $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList
-        labelList time
+    bs <- liftIO $ buildAll counters gauges labels
+    writeLBS bs
 
 -- | Serve all counters and gauges, built-in or not, as a flattened
 -- JSON object.
 serveCombined :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
 serveCombined counters gauges labels = do
     modifyResponse $ setContentType "application/json"
-    gcStats <- liftIO getGcStats
-    counterList <- liftIO $ readAllRefs counters
-    gaugeList <- liftIO $ readAllRefs gauges
-    labelList <- liftIO $ readAllRefs labels
-    time <- liftIO getTimeMillis
-    writeLBS $ A.encode $ A.toJSON $ Combined $
-        Stats gcStats counterList gaugeList labelList time
+    bs <- liftIO $ buildCombined counters gauges labels
+    writeLBS bs
 
 -- | Serve a single counter, as plain text.
 serveOne :: (Ref r t, Show t) => IORef (M.HashMap T.Text r) -> Snap ()
 serveOne refs = do
     modifyResponse $ setContentType "text/plain"
-    m <- liftIO $ readIORef refs
     req <- getRequest
     let mname = T.decodeUtf8 <$> join
                 (listToMaybe <$> Map.lookup "name" (rqParams req))
     case mname of
         Nothing -> pass
-        Just name -> case M.lookup name m of
-            Just counter -> do
-                val <- liftIO $ read counter
-                writeBS $ S8.pack $ show val
-            Nothing ->
-                -- Try built-in (e.g. GC) refs
-                case Map.lookup name builtinCounters of
-                    Just f -> do
-                        gcStats <- liftIO getGcStats
-                        writeBS $ S8.pack $ f gcStats
-                    Nothing -> do
-                        modifyResponse $ setResponseStatus 404 "Not Found"
-                        r <- getResponse
-                        finishWith r
+        Just name -> do
+            mbs <- liftIO $ buildOne refs name
+            case mbs of
+                Just bs -> writeBS bs
+                Nothing -> do
+                    modifyResponse $ setResponseStatus 404 "Not Found"
+                    r <- getResponse
+                    finishWith r
+
 {-# INLINABLE serveOne #-}
+
+-- | Serve a collection of counters or gauges, as a JSON object.
+buildMany :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r)
+    -> IO L.ByteString
+buildMany mapRef = do
+    list <- readAllRefs mapRef
+    time <- getTimeMillis
+    return $ A.encode $ A.toJSON $ Group list time
+{-# INLINABLE buildMany #-}
+
+-- | Serve all counter, gauges and labels, built-in or not, as a
+-- nested JSON object.
+buildAll :: IORef Counters -> IORef Gauges -> IORef Labels -> IO L.ByteString
+buildAll counters gauges labels = do
+    gcStats <- getGcStats
+    counterList <- readAllRefs counters
+    gaugeList <- readAllRefs gauges
+    labelList <- readAllRefs labels
+    time <- getTimeMillis
+    return $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList
+        labelList time
+
+buildCombined :: IORef Counters -> IORef Gauges -> IORef Labels -> IO L.ByteString
+buildCombined counters gauges labels = do
+    gcStats <- getGcStats
+    counterList <- readAllRefs counters
+    gaugeList <- readAllRefs gauges
+    labelList <- readAllRefs labels
+    time <- getTimeMillis
+    return $ A.encode $ A.toJSON $ Combined $
+        Stats gcStats counterList gaugeList labelList time
+
+buildOne :: (Ref r t, Show t)
+    => IORef (M.HashMap T.Text r) -> T.Text
+    -> IO (Maybe S.ByteString)
+buildOne refs name = do
+    m <- readIORef refs
+    case M.lookup name m of
+        Just counter -> do
+            val <- read counter
+            return $ Just $ S8.pack $ show val
+        Nothing ->
+            -- Try built-in (e.g. GC) refs
+            case Map.lookup name builtinCounters of
+                Just f -> do
+                    gcStats <- liftIO getGcStats
+                    return $ Just $ S8.pack $ f gcStats
+                Nothing -> return Nothing
+{-# INLINABLE buildOne #-}
 
 -- | A list of all built-in (e.g. GC) counters, together with a
 -- pretty-printing function for each.
