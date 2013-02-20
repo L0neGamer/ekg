@@ -143,7 +143,6 @@ import System.Remote.Snap
 --
 -- [@peak_megabytes_allocated@] Maximum number of megabytes allocated
 --
-#if MIN_VERSION_base(4,6,0)
 -- [@par_tot_bytes_copied@] Number of bytes copied during GC, minus
 -- space held by mutable lists held by the capabilities.  Can be used
 -- with 'parMaxBytesCopied' to determine how well parallel GC utilized
@@ -151,22 +150,12 @@ import System.Remote.Snap
 --
 -- [@par_avg_bytes_copied@] Deprecated alias for
 -- @par_tot_bytes_copied@.
-#else
--- [@par_avg_bytes_copied@] Number of bytes copied during GC, minus
--- space held by mutable lists held by the capabilities.  Can be used
--- with 'parMaxBytesCopied' to determine how well parallel GC utilized
--- all cores.
-#endif
 --
 -- [@par_max_bytes_copied@] Sum of number of bytes copied each GC by
--- the most active GC thread each GC.  The ratio of
-#if MIN_VERSION_base(4,6,0)
--- 'parTotBytesCopied' divided by 'parMaxBytesCopied' approaches 1 for
-#else
--- 'parAvgBytesCopied' divided by 'parMaxBytesCopied' approaches 1 for
-#endif
--- a maximally sequential run and approaches the number of threads
--- (set by the RTS flag @-N@) for a maximally parallel run.
+-- the most active GC thread each GC. The ratio of
+-- @par_tot_bytes_copied@ divided by @par_max_bytes_copied@ approaches
+-- 1 for a maximally sequential run and approaches the number of
+-- threads (set by the RTS flag @-N@) for a maximally parallel run.
 
 -- $userdefined
 -- The monitoring server can store and serve user-defined,

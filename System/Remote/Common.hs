@@ -39,6 +39,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.Function (on)
 import qualified Data.HashMap.Strict as M
 import Data.IORef (IORef, atomicModifyIORef, readIORef)
+import Data.Int (Int64)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as T
@@ -190,7 +191,7 @@ instance A.ToJSON Stats where
 newtype Combined = Combined Stats
 
 instance A.ToJSON Combined where
-    toJSON (Combined (Stats (Stats.GCStats {..}) counters gauges labels t)) =
+    toJSON (Combined (Stats s@(Stats.GCStats {..}) counters gauges labels t)) =
         A.object $
         [ "server_timestamp_millis"  .= t
         , "bytes_allocated"          .= bytesAllocated
@@ -209,12 +210,8 @@ instance A.ToJSON Combined where
         , "gc_wall_seconds"          .= gcWallSeconds
         , "cpu_seconds"              .= cpuSeconds
         , "wall_seconds"             .= wallSeconds
-#if MIN_VERSION_base(4,6,0)
-        , "par_tot_bytes_copied"     .= parTotBytesCopied
-        , "par_avg_bytes_copied"     .= parTotBytesCopied
-#else
-        , "par_avg_bytes_copied"     .= parAvgBytesCopied
-#endif
+        , "par_tot_bytes_copied"     .= gcParTotBytesCopied s
+        , "par_avg_bytes_copied"     .= gcParTotBytesCopied s
         , "par_max_bytes_copied"     .= parMaxBytesCopied
         ] ++
         map (uncurry (.=)) counters ++
@@ -259,7 +256,7 @@ instance A.ToJSON Json where
 
 -- | Partition GC statistics into counters and gauges.
 partitionGcStats :: Stats.GCStats -> ([(T.Text, Json)], [(T.Text, Json)])
-partitionGcStats (Stats.GCStats {..}) = (counters, gauges)
+partitionGcStats s@(Stats.GCStats {..}) = (counters, gauges)
   where
     counters = [
           ("bytes_allocated"          , Json bytesAllocated)
@@ -280,12 +277,8 @@ partitionGcStats (Stats.GCStats {..}) = (counters, gauges)
         , ("current_bytes_slop"       , Json currentBytesSlop)
         , ("max_bytes_slop"           , Json maxBytesSlop)
         , ("peak_megabytes_allocated" , Json peakMegabytesAllocated)
-#if MIN_VERSION_base(4,6,0)
-        , ("par_tot_bytes_copied"     , Json parTotBytesCopied)
-        , ("par_avg_bytes_copied"     , Json parTotBytesCopied)
-#else
-        , ("par_avg_bytes_copied"     , Json parAvgBytesCopied)
-#endif
+        , ("par_tot_bytes_copied"     , Json (gcParTotBytesCopied s))
+        , ("par_avg_bytes_copied"     , Json (gcParTotBytesCopied s))
         , ("par_max_bytes_copied"     , Json parMaxBytesCopied)
         ]
 
@@ -371,12 +364,8 @@ builtinCounters = Map.fromList [
     , ("gc_wall_seconds"          , show . Stats.gcWallSeconds)
     , ("cpu_seconds"              , show . Stats.cpuSeconds)
     , ("wall_seconds"             , show . Stats.wallSeconds)
-#if MIN_VERSION_base(4,6,0)
-    , ("par_tot_bytes_copied"     , show . Stats.parTotBytesCopied)
-    , ("par_avg_bytes_copied"     , show . Stats.parTotBytesCopied)
-#else
-    , ("par_avg_bytes_copied"     , show . Stats.parAvgBytesCopied)
-#endif
+    , ("par_tot_bytes_copied"     , show . gcParTotBytesCopied)
+    , ("par_avg_bytes_copied"     , show . gcParTotBytesCopied)
     , ("par_max_bytes_copied"     , show . Stats.parMaxBytesCopied)
     ]
 
@@ -413,3 +402,11 @@ breakDiscard w s =
 -- | Return the number of milliseconds since epoch.
 getTimeMillis :: IO Double
 getTimeMillis = (realToFrac . (* 1000)) `fmap` getPOSIXTime
+
+-- | Helper to work around rename in GHC.Stats in base-4.6.
+gcParTotBytesCopied :: Stats.GCStats -> Int64
+#if MIN_VERSION_base(4,6,0)
+gcParTotBytesCopied = Stats.parTotBytesCopied
+#else
+gcParTotBytesCopied = Stats.parAvgBytesCopied
+#endif
