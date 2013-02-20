@@ -15,7 +15,6 @@ module System.Remote.Common
     , Ref(..)
 
       -- * User-defined counters, gauges, and labels
-      -- $userdefined
     , getCounter
     , getGauge
     , getLabel
@@ -77,38 +76,6 @@ data Server = Server {
 
 ------------------------------------------------------------------------
 -- * User-defined counters, gauges and labels
-
--- $userdefined
--- The monitoring server can store and serve user-defined,
--- integer-valued counters and gauges, and string-value labels.  A
--- counter is a monotonically increasing value (e.g. TCP connections
--- established since program start.) A gauge is a variable value
--- (e.g. the current number of concurrent connections.) A label is a
--- free-form string value (e.g. exporting the command line arguments
--- or host name.)  Each counter, gauge, and label is associated with a
--- name, which is used when it is displayed in the UI or returned in a
--- JSON object.
---
--- Even though it's technically possible to have a counter and a gauge
--- with the same name, associated with the same server, it's not
--- recommended as it might make it harder for clients to distinguish
--- the two.
---
--- To create and use a counter, simply call 'getCounter' to create it
--- and then call e.g. 'System.Remote.Counter.inc' or
--- 'System.Remote.Counter.add' to modify its value.  Example:
---
--- > main = do
--- >     handle <- forkServer "localhost" 8000
--- >     counter <- getCounter "iterations" handle
--- >     let loop n = do
--- >             inc counter
--- >             loop
--- >     loop
---
--- To create a gauge, use 'getGauge' instead of 'getCounter' and then
--- call e.g. 'System.Remote.Gauge.set' or
--- 'System.Remote.Gauge.modify'.  Similar for labels.
 
 class Ref r t | r -> t where
     new :: IO r

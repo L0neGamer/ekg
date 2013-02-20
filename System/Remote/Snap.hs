@@ -42,6 +42,7 @@ startServer counters gauges labels host port =
                Config.setAccessLog Config.ConfigNoLog $
                Config.setPort port $
                Config.setHostname host $
+               Config.setBind host $
                Config.defaultConfig
 
 
