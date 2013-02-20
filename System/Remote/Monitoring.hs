@@ -68,10 +68,9 @@ import System.Remote.Snap
 -- (i.e. URLs) are available:
 --
 -- [\/] JSON object containing all counters, gauges and labels.
--- Counters and gauges are stored as nested objects under the
--- @counters@ and @gauges@ attributes, respectively. Labels are stored
--- under the @labels@ object. Content types: \"text\/html\" (default),
--- \"application\/json\"
+-- Counters, gauges, and labels are stored as nested objects under the
+-- @counters@, @gauges@, and @labels@ attributes, respectively.
+-- Content types: \"text\/html\" (default), \"application\/json\"
 --
 -- [\/combined] Flattened JSON object containing all counters, gauges,
 -- and labels.  Content types: \"application\/json\"
