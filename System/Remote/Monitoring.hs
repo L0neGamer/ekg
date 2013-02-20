@@ -67,10 +67,11 @@ import System.Remote.Snap
 -- the host and port passed to 'forkServer'.  The following resources
 -- (i.e. URLs) are available:
 --
--- [\/] JSON object containing all counters and gauges.  Counters and
--- gauges are stored as nested objects under the @counters@ and
--- @gauges@ attributes, respectively.  Content types: \"text\/html\"
--- (default), \"application\/json\"
+-- [\/] JSON object containing all counters, gauges and labels.
+-- Counters and gauges are stored as nested objects under the
+-- @counters@ and @gauges@ attributes, respectively. Labels are stored
+-- under the @labels@ object. Content types: \"text\/html\" (default),
+-- \"application\/json\"
 --
 -- [\/combined] Flattened JSON object containing all counters, gauges,
 -- and labels.  Content types: \"application\/json\"
@@ -170,7 +171,7 @@ import System.Remote.Snap
 
 -- $userdefined
 -- The monitoring server can store and serve user-defined,
--- integer-valued counters and gauges, and string-value labels.  A
+-- integer-valued counters and gauges, and string-valued labels.  A
 -- counter is a monotonically increasing value (e.g. TCP connections
 -- established since program start.) A gauge is a variable value
 -- (e.g. the current number of concurrent connections.) A label is a
