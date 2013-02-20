@@ -151,32 +151,6 @@ data Stats = Stats
     ![(T.Text, Json)]       -- Labels
     {-# UNPACK #-} !Double  -- Milliseconds since epoch
 
-emptyGCStats :: Stats.GCStats
-emptyGCStats = Stats.GCStats
-    { bytesAllocated         = 0
-    , numGcs                 = 0
-    , maxBytesUsed           = 0
-    , numByteUsageSamples    = 0
-    , cumulativeBytesUsed    = 0
-    , bytesCopied            = 0
-    , currentBytesUsed       = 0
-    , currentBytesSlop       = 0
-    , maxBytesSlop           = 0
-    , peakMegabytesAllocated = 0
-    , mutatorCpuSeconds      = 0
-    , mutatorWallSeconds     = 0
-    , gcCpuSeconds           = 0
-    , gcWallSeconds          = 0
-    , cpuSeconds             = 0
-    , wallSeconds            = 0
-#if MIN_VERSION_base(4,6,0)
-    , parTotBytesCopied      = 0
-#else
-    , parAvgBytesCopied      = 0
-#endif
-    , parMaxBytesCopied      = 0
-    }
-
 instance A.ToJSON Stats where
     toJSON (Stats gcStats counters gauges labels t) = A.object $
         [ "server_timestamp_millis" .= t
@@ -334,14 +308,36 @@ buildOne refs name = do
 {-# INLINABLE buildOne #-}
 
 getGcStats :: IO Stats.GCStats
-getGcStats = do
 #if MIN_VERSION_base(4,6,0)
+getGcStats = do
     enabled <- Stats.getGCStatsEnabled
     if enabled
         then Stats.getGCStats
         else return emptyGCStats
+
+emptyGCStats :: Stats.GCStats
+emptyGCStats = Stats.GCStats
+    { bytesAllocated         = 0
+    , numGcs                 = 0
+    , maxBytesUsed           = 0
+    , numByteUsageSamples    = 0
+    , cumulativeBytesUsed    = 0
+    , bytesCopied            = 0
+    , currentBytesUsed       = 0
+    , currentBytesSlop       = 0
+    , maxBytesSlop           = 0
+    , peakMegabytesAllocated = 0
+    , mutatorCpuSeconds      = 0
+    , mutatorWallSeconds     = 0
+    , gcCpuSeconds           = 0
+    , gcWallSeconds          = 0
+    , cpuSeconds             = 0
+    , wallSeconds            = 0
+    , parTotBytesCopied      = 0
+    , parMaxBytesCopied      = 0
+    }
 #else
-    Stats.getGCStats
+getGcStats = Stats.getGCStats
 #endif
 
 -- | A list of all built-in (e.g. GC) counters, together with a
