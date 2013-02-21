@@ -22,6 +22,9 @@ module System.Remote.Monitoring
       -- * Required configuration
       -- $configuration
 
+      -- * Security considerations
+      -- $security
+
       -- * REST API
       -- $api
 
@@ -61,6 +64,12 @@ import System.Remote.Snap
 --
 -- The runtime overhead of @-T@ is very small so it's safe to always
 -- leave it enabled.
+
+-- $security
+-- Be aware that if the server started by 'forkServer' is not bound to
+-- \"localhost\" (or equivalent) anyone on the network can access the
+-- monitoring server. Either make sure the network is secure or bind
+-- the server to \"localhost\".
 
 -- $api
 -- To use the machine-readable REST API, send an HTTP GET request to
