@@ -3,7 +3,7 @@
 module System.Remote.Snap
     ( startServer
     ) where
-    
+
 import Control.Applicative ((<$>), (<|>))
 import Control.Exception (throwIO)
 import Control.Monad (join, unless)
