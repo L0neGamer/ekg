@@ -5,10 +5,12 @@ module System.Remote.Snap
     ) where
     
 import Control.Applicative ((<$>), (<|>))
+import Control.Exception (throwIO)
 import Control.Monad (join, unless)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson.Types as A
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import qualified Data.HashMap.Strict as M
 import Data.IORef (IORef)
 import qualified Data.List as List
@@ -16,6 +18,8 @@ import qualified Data.Map as Map
 import Data.Maybe (listToMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Network.Socket (NameInfoFlag(NI_NUMERICHOST), addrAddress, getAddrInfo,
+                       getNameInfo)
 import Paths_ekg (getDataDir)
 import Prelude hiding (read)
 import Snap.Core (MonadSnap, Request, Snap, finishWith, getHeaders, getRequest,
@@ -31,20 +35,39 @@ import System.Remote.Common
 
 ------------------------------------------------------------------------
 
+-- | Convert a host name (e.g. \"localhost\" or \"127.0.0.1\") to a
+-- numeric host address (e.g. \"127.0.0.1\").
+getNumericHostAddress :: S.ByteString -> IO S.ByteString
+getNumericHostAddress host = do
+    ais <- getAddrInfo Nothing (Just (S8.unpack host)) Nothing
+    case ais of
+        [] -> unsupportedAddressError
+        (ai:_) -> do
+            ni <- getNameInfo [NI_NUMERICHOST] True False (addrAddress ai)
+            case ni of
+                (Just numericHost, _) -> return $! S8.pack numericHost
+                _ -> unsupportedAddressError
+  where
+    unsupportedAddressError = throwIO $
+        userError $ "unsupported address: " ++ S8.unpack host
+
 startServer :: IORef Counters -> IORef Gauges -> IORef Labels
             -> S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
             -> Int           -- ^ Port to listen on (e.g. 8000)
             -> IO ()
-startServer counters gauges labels host port =
-    httpServe conf (monitor counters gauges labels)
-  where conf = Config.setVerbose False $
+startServer counters gauges labels host port = do
+    -- Snap doesn't allow for non-numeric host names in
+    -- 'Snap.setBind'. We work around that limitation by converting a
+    -- possible non-numeric host name to a numeric address.
+    numericHost <- getNumericHostAddress host
+    let conf = Config.setVerbose False $
                Config.setErrorLog Config.ConfigNoLog $
                Config.setAccessLog Config.ConfigNoLog $
                Config.setPort port $
                Config.setHostname host $
-               Config.setBind host $
+               Config.setBind numericHost $
                Config.defaultConfig
-
+    httpServe conf (monitor counters gauges labels)
 
 -- | A handler that can be installed into an existing Snap application.
 monitor :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
