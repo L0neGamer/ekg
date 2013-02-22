@@ -1,3 +1,11 @@
+## 0.3.1.3 (2013-02-22)
+
+ * Fixed security issue where ekg would always listen to all incoming
+   requests, even if "localhost" was specified.
+
+ * Always export par_tot_bytes_copied. Previously it was only exported
+   if using base-4.6 and later.
+
 ## 0.3.1.2 (2012-09-18)
 
  * Support GHC 7.6
