@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module System.Remote.Snap
     ( startServer
@@ -15,23 +16,24 @@ import qualified Data.HashMap.Strict as M
 import Data.IORef (IORef)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Maybe (listToMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Network.Socket (NameInfoFlag(NI_NUMERICHOST), addrAddress, getAddrInfo,
                        getNameInfo)
-import Paths_ekg (getDataDir)
 import Prelude hiding (read)
 import Snap.Core (MonadSnap, Request, Snap, finishWith, getHeaders, getRequest,
                   getResponse, method, Method(GET), modifyResponse, pass, route,
-                  rqParams, rqPathInfo, setContentType, setResponseStatus,
-                  writeBS, writeLBS)
+                  rqURI, rqParams, rqPathInfo, setContentType, setResponseStatus,
+                  writeBS, writeLBS, setResponseCode, setContentLength, )
 import Snap.Http.Server (httpServe)
 import qualified Snap.Http.Server.Config as Config
-import Snap.Util.FileServe (serveDirectory)
-import System.FilePath ((</>))
+import Snap.Util.FileServe (defaultMimeTypes)
+import System.FilePath (takeExtension)
 
 import System.Remote.Common
+import Data.FileEmbed (embedDir)
+
 
 ------------------------------------------------------------------------
 
@@ -72,7 +74,6 @@ startServer counters gauges labels host port = do
 -- | A handler that can be installed into an existing Snap application.
 monitor :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
 monitor counters gauges labels = do
-    dataDir <- liftIO getDataDir
     route [
           ("", method GET (format "application/json"
                            (serveAll counters gauges labels)))
@@ -91,7 +92,8 @@ monitor counters gauges labels = do
         , ("labels/:name", method GET (format "text/plain"
                                        (serveOne labels)))
         ]
-        <|> serveDirectory (dataDir </> "assets")
+        <|>
+        serveAssets
 
 -- | The Accept header of the request.
 acceptHeader :: Request -> Maybe S.ByteString
@@ -154,3 +156,27 @@ serveOne refs = do
                     r <- getResponse
                     finishWith r
 {-# INLINABLE serveOne #-}
+
+-- | Serve the embedded assets.
+serveAssets :: MonadSnap m => m ()
+serveAssets = serveEmbeddedFiles $(embedDir "assets")
+
+-- | Serve a list of files under the given filepaths while selecting the MIME
+--type using the 'defaultMimeMap'.
+serveEmbeddedFiles :: MonadSnap m => [(FilePath, S8.ByteString)] -> m ()
+serveEmbeddedFiles files = do
+      req <- getRequest
+      fromMaybe pass $ M.lookup (rqURI req) table
+    where
+      table         = M.fromList $ do
+          (path, content) <- files
+          let err  = error $ "Failed to determine MIME type of '" ++ path ++ "'"
+              mime = fromMaybe err $
+                         M.lookup (takeExtension path) defaultMimeTypes
+          return ( S8.pack path
+                 , do modifyResponse
+                        $ setContentType mime
+                        . setContentLength (fromIntegral $ S8.length content)
+                        . setResponseCode 200
+                      writeBS content
+                 )
