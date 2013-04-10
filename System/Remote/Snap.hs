@@ -2,6 +2,7 @@
 
 module System.Remote.Snap
     ( startServer
+    , monitor
     ) where
 
 import Control.Applicative ((<$>), (<|>))
@@ -69,28 +70,34 @@ startServer counters gauges labels host port = do
                Config.defaultConfig
     httpServe conf (monitor counters gauges labels)
 
+-- | The routes of the ekg monitor. They do not include the routes for its
+-- assets.
+monitorRoutes :: MonadSnap m
+              => IORef Counters -> IORef Gauges -> IORef Labels
+              -> [(S8.ByteString, m ())]
+monitorRoutes counters gauges labels =
+    [ ("",               jsonHandler $ serveAll counters gauges labels)
+    , ("combined",       jsonHandler $ serveCombined counters gauges labels)
+    , ("counters",       jsonHandler $ serveMany counters)
+    , ("counters/:name", textHandler $ serveOne counters)
+    , ("gauges",         jsonHandler $ serveMany gauges)
+    , ("gauges/:name",   textHandler $ serveOne gauges)
+    , ("labels",         jsonHandler $ serveMany labels)
+    , ("labels/:name",   textHandler $ serveOne labels)
+    ]
+  where
+    jsonHandler = wrapHandler "application/json"
+    textHandler = wrapHandler "text/plain"
+    wrapHandler fmt handler = method GET $ format fmt $ do
+        req <- getRequest
+        -- We only want to handle completely matched paths.
+        if S.null (rqPathInfo req) then handler else pass
+
 -- | A handler that can be installed into an existing Snap application.
 monitor :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
 monitor counters gauges labels = do
     dataDir <- liftIO getDataDir
-    route [
-          ("", method GET (format "application/json"
-                           (serveAll counters gauges labels)))
-        , ("combined", method GET (format "application/json"
-                                   (serveCombined counters gauges labels)))
-        , ("counters", method GET (format "application/json"
-                                   (serveMany counters)))
-        , ("counters/:name", method GET (format "text/plain"
-                                         (serveOne counters)))
-        , ("gauges", method GET (format "application/json"
-                                 (serveMany gauges)))
-        , ("gauges/:name", method GET (format "text/plain"
-                                       (serveOne gauges)))
-        , ("labels", method GET (format "application/json"
-                                 (serveMany labels)))
-        , ("labels/:name", method GET (format "text/plain"
-                                       (serveOne labels)))
-        ]
+    route (monitorRoutes counters gauges labels)
         <|> serveDirectory (dataDir </> "assets")
 
 -- | The Accept header of the request.
@@ -108,7 +115,8 @@ format fmt action = do
         _ -> pass
 
 -- | Serve a collection of counters or gauges, as a JSON object.
-serveMany :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r) -> Snap ()
+serveMany :: (Ref r t, A.ToJSON t, MonadSnap m)
+          => IORef (M.HashMap T.Text r) -> m ()
 serveMany mapRef = do
     modifyResponse $ setContentType "application/json"
     bs <- liftIO $ buildMany mapRef
@@ -117,7 +125,8 @@ serveMany mapRef = do
 
 -- | Serve all counter, gauges and labels, built-in or not, as a
 -- nested JSON object.
-serveAll :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
+serveAll :: MonadSnap m
+         => IORef Counters -> IORef Gauges -> IORef Labels -> m ()
 serveAll counters gauges labels = do
     req <- getRequest
     -- Workaround: Snap still matches requests to /foo to this handler
@@ -130,14 +139,16 @@ serveAll counters gauges labels = do
 
 -- | Serve all counters and gauges, built-in or not, as a flattened
 -- JSON object.
-serveCombined :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
+serveCombined :: MonadSnap m
+              => IORef Counters -> IORef Gauges -> IORef Labels -> m ()
 serveCombined counters gauges labels = do
     modifyResponse $ setContentType "application/json"
     bs <- liftIO $ buildCombined counters gauges labels
     writeLBS bs
 
 -- | Serve a single counter, as plain text.
-serveOne :: (Ref r t, Show t) => IORef (M.HashMap T.Text r) -> Snap ()
+serveOne :: (Ref r t, Show t, MonadSnap m)
+         => IORef (M.HashMap T.Text r) -> m ()
 serveOne refs = do
     modifyResponse $ setContentType "text/plain"
     req <- getRequest
