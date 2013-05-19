@@ -154,12 +154,13 @@ data Stats = Stats
 instance A.ToJSON Stats where
     toJSON (Stats gcStats counters gauges labels t) = A.object $
         [ "server_timestamp_millis" .= t
-        , "counters"                .= Assocs (gcCounters ++ counters)
-        , "gauges"                  .= Assocs (gcGauges ++ gauges)
-        , "labels"                  .= Assocs (labels)
+        , "counters"                .= Assocs (json gcCounters ++ counters)
+        , "gauges"                  .= Assocs (json gcGauges ++ gauges)
+        , "labels"                  .= Assocs labels
         ]
       where
         (gcCounters, gcGauges) = partitionGcStats gcStats
+        json = map (\ (x, y) -> (x, Json y))
 
 -- | 'Stats' encoded as a flattened JSON object.
 newtype Combined = Combined Stats
@@ -228,32 +229,41 @@ data Json = forall a. A.ToJSON a => Json a
 instance A.ToJSON Json where
     toJSON (Json x) = A.toJSON x
 
+-- | Many metrics can be either integer or floating point values. This
+-- is captured by the 'Number' data type.
+data Number = I !Int64
+            | D !Double
+
+instance A.ToJSON Number where
+    toJSON (I n) = A.toJSON n
+    toJSON (D n) = A.toJSON n
+
 -- | Partition GC statistics into counters and gauges.
-partitionGcStats :: Stats.GCStats -> ([(T.Text, Json)], [(T.Text, Json)])
+partitionGcStats :: Stats.GCStats -> ([(T.Text, Number)], [(T.Text, Number)])
 partitionGcStats s@(Stats.GCStats {..}) = (counters, gauges)
   where
     counters = [
-          ("bytes_allocated"          , Json bytesAllocated)
-        , ("num_gcs"                  , Json numGcs)
-        , ("num_bytes_usage_samples"  , Json numByteUsageSamples)
-        , ("cumulative_bytes_used"    , Json cumulativeBytesUsed)
-        , ("bytes_copied"             , Json bytesCopied)
-        , ("mutator_cpu_seconds"      , Json mutatorCpuSeconds)
-        , ("mutator_wall_seconds"     , Json mutatorWallSeconds)
-        , ("gc_cpu_seconds"           , Json gcCpuSeconds)
-        , ("gc_wall_seconds"          , Json gcWallSeconds)
-        , ("cpu_seconds"              , Json cpuSeconds)
-        , ("wall_seconds"             , Json wallSeconds)
+          ("bytes_allocated"          , I bytesAllocated)
+        , ("num_gcs"                  , I numGcs)
+        , ("num_bytes_usage_samples"  , I numByteUsageSamples)
+        , ("cumulative_bytes_used"    , I cumulativeBytesUsed)
+        , ("bytes_copied"             , I bytesCopied)
+        , ("mutator_cpu_seconds"      , D mutatorCpuSeconds)
+        , ("mutator_wall_seconds"     , D mutatorWallSeconds)
+        , ("gc_cpu_seconds"           , D gcCpuSeconds)
+        , ("gc_wall_seconds"          , D gcWallSeconds)
+        , ("cpu_seconds"              , D cpuSeconds)
+        , ("wall_seconds"             , D wallSeconds)
         ]
     gauges = [
-          ("max_bytes_used"           , Json maxBytesUsed)
-        , ("current_bytes_used"       , Json currentBytesUsed)
-        , ("current_bytes_slop"       , Json currentBytesSlop)
-        , ("max_bytes_slop"           , Json maxBytesSlop)
-        , ("peak_megabytes_allocated" , Json peakMegabytesAllocated)
-        , ("par_tot_bytes_copied"     , Json (gcParTotBytesCopied s))
-        , ("par_avg_bytes_copied"     , Json (gcParTotBytesCopied s))
-        , ("par_max_bytes_copied"     , Json parMaxBytesCopied)
+          ("max_bytes_used"           , I maxBytesUsed)
+        , ("current_bytes_used"       , I currentBytesUsed)
+        , ("current_bytes_slop"       , I currentBytesSlop)
+        , ("max_bytes_slop"           , I maxBytesSlop)
+        , ("peak_megabytes_allocated" , I peakMegabytesAllocated)
+        , ("par_tot_bytes_copied"     , I (gcParTotBytesCopied s))
+        , ("par_avg_bytes_copied"     , I (gcParTotBytesCopied s))
+        , ("par_max_bytes_copied"     , I parMaxBytesCopied)
         ]
 
 ------------------------------------------------------------------------
