@@ -213,14 +213,19 @@ instance A.ToJSON Group where
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r)
-            -> IO [(T.Text, Json)]
+readAllRefs :: Ref r t => IORef (M.HashMap T.Text r) -> IO [(T.Text, t)]
 readAllRefs mapRef = do
     m <- readIORef mapRef
     forM (M.toList m) $ \ (name, ref) -> do
         val <- read ref
-        return (name, Json val)
+        return (name, val)
 {-# INLINABLE readAllRefs #-}
+
+readAllRefsAsJson :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r)
+                  -> IO [(T.Text, Json)]
+readAllRefsAsJson mapRef =
+    map (\ (x, y) -> (x, Json y)) `fmap` readAllRefs mapRef
+{-# INLINABLE readAllRefsAsJson #-}
 
 
 -- Existential wrapper used for OO-style polymorphism.
@@ -272,7 +277,7 @@ partitionGcStats s@(Stats.GCStats {..}) = (counters, gauges)
 buildMany :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r)
     -> IO L.ByteString
 buildMany mapRef = do
-    list <- readAllRefs mapRef
+    list <- readAllRefsAsJson mapRef
     time <- getTimeMillis
     return $ A.encode $ A.toJSON $ Group list time
 {-# INLINABLE buildMany #-}
@@ -282,9 +287,9 @@ buildMany mapRef = do
 buildAll :: IORef Counters -> IORef Gauges -> IORef Labels -> IO L.ByteString
 buildAll counters gauges labels = do
     gcStats <- getGcStats
-    counterList <- readAllRefs counters
-    gaugeList <- readAllRefs gauges
-    labelList <- readAllRefs labels
+    counterList <- readAllRefsAsJson counters
+    gaugeList <- readAllRefsAsJson gauges
+    labelList <- readAllRefsAsJson labels
     time <- getTimeMillis
     return $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList
         labelList time
@@ -292,9 +297,9 @@ buildAll counters gauges labels = do
 buildCombined :: IORef Counters -> IORef Gauges -> IORef Labels -> IO L.ByteString
 buildCombined counters gauges labels = do
     gcStats <- getGcStats
-    counterList <- readAllRefs counters
-    gaugeList <- readAllRefs gauges
-    labelList <- readAllRefs labels
+    counterList <- readAllRefsAsJson counters
+    gaugeList <- readAllRefsAsJson gauges
+    labelList <- readAllRefsAsJson labels
     time <- getTimeMillis
     return $ A.encode $ A.toJSON $ Combined $
         Stats gcStats counterList gaugeList labelList time
