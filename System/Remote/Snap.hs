@@ -192,4 +192,4 @@ parseHttpAccept = List.map fst
 breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
     let (x, y) = S.break (== w) s
-     in (x, S.drop 1 y)
+    in (x, S.drop 1 y)
