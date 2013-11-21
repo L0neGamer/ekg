@@ -22,8 +22,13 @@ module System.Remote.Common
 
       -- * Sampling
     , Number(..)
-    , Metrics
+    , Metrics(..)
     , sampleAll
+    , Metric(..)
+    , sampleCombined
+    , sampleCounters
+    , sampleGauges
+    , sampleLabels
 
     , buildMany
     , buildAll
@@ -145,9 +150,11 @@ getLabel name server = getRef name (userLabels server)
 -- * Sampling
 
 -- | A sample of some metrics.
-data Metrics = Metrics !(M.HashMap T.Text Number)
-                       !(M.HashMap T.Text Number)
-                       !(M.HashMap T.Text T.Text)
+data Metrics = Metrics
+    { metricsCounters :: !(M.HashMap T.Text Number)
+    , metricsGauges   :: !(M.HashMap T.Text Number)
+    , metricsLabels   :: !(M.HashMap T.Text T.Text)
+    }
 
 -- | Sample all metrics.
 sampleAll :: Server -> IO Metrics
@@ -162,6 +169,29 @@ sampleAll server = do
         (M.fromList allCounters)
         (M.fromList allGauges)
         (M.fromList labels)
+
+-- | The kind of metrics that can be tracked.
+data Metric = Counter !Number
+            | Gauge !Number
+            | Label !T.Text
+
+sampleCombined :: Server -> IO (M.HashMap T.Text Metric)
+sampleCombined server = do
+    metrics <- sampleAll server
+    -- This assumes that the same name wasn't used for two different
+    -- metric types.
+    return $! M.unions [M.map Counter (metricsCounters metrics),
+                        M.map Gauge (metricsGauges metrics),
+                        M.map Label (metricsLabels metrics)]
+
+sampleCounters :: Server -> IO (M.HashMap T.Text Number)
+sampleCounters server = metricsCounters <$> sampleAll server
+
+sampleGauges :: Server -> IO (M.HashMap T.Text Number)
+sampleGauges server = metricsGauges <$> sampleAll server
+
+sampleLabels :: Server -> IO (M.HashMap T.Text T.Text)
+sampleLabels server = metricsLabels <$> sampleAll server
 
 -- | Apply a function to the second component of a pair and evaluate
 -- the result to WHNF.
