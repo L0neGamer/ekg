@@ -22,7 +22,6 @@ module System.Remote.Common
 
       -- * Sampling
     , Number(..)
-    , Metric(..)
     , Metrics
     , sampleAll
 
@@ -145,13 +144,10 @@ getLabel name server = getRef name (userLabels server)
 ------------------------------------------------------------------------
 -- * Sampling
 
--- | The kind of metrics that can be tracked.
-data Metric = Counter !Number
-            | Gauge !Number
-            | Label !T.Text
-
 -- | A sample of some metrics.
-type Metrics = M.HashMap T.Text Metric
+data Metrics = Metrics !(M.HashMap T.Text Number)
+                       !(M.HashMap T.Text Number)
+                       !(M.HashMap T.Text T.Text)
 
 -- | Sample all metrics.
 sampleAll :: Server -> IO Metrics
@@ -160,13 +156,12 @@ sampleAll server = do
     gauges <- readAllRefs (userGauges server)
     labels <- readAllRefs (userLabels server)
     (gcCounters, gcGauges) <- partitionGcStats <$> getGcStats
-    return $! M.fromList (
-        map (mapSnd (Counter . I . fromIntegral)) counters ++
-        map (mapSnd (Gauge . I . fromIntegral)) gauges ++
-        map (mapSnd Label) labels ++
-        map (mapSnd Counter) gcCounters ++
-        map (mapSnd Gauge) gcGauges
-        )
+    let allCounters = (map (mapSnd (I . fromIntegral)) counters ++ gcCounters)
+        allGauges   = (map (mapSnd (I . fromIntegral)) gauges ++ gcGauges)
+    return $! Metrics
+        (M.fromList allCounters)
+        (M.fromList allGauges)
+        (M.fromList labels)
 
 -- | Apply a function to the second component of a pair and evaluate
 -- the result to WHNF.
