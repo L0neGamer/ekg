@@ -2,7 +2,6 @@
 
 module System.Remote.Snap
     ( startServer
-    , monitor
     ) where
 
 import Control.Applicative ((<$>), (<|>))
