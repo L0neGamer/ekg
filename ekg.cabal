@@ -20,6 +20,7 @@ data-files:          assets/index.html assets/monitor.js assets/monitor.css
 extra-source-files:  LICENSE.icons LICENSE.javascript README.md
                      assets/jquery-1.6.4.js assets/jquery.flot.js
                      examples/Basic.hs CHANGES.md
+cabal-version:       >= 1.8
 
 library
   exposed-modules:
@@ -51,6 +52,17 @@ library
     unordered-containers < 0.3
 
   ghc-options: -Wall
+
+benchmark benchmarks
+  hs-source-dirs: benchmarks
+  main-is: Benchmarks.hs
+  type: exitcode-stdio-1.0
+
+  build-depends:
+    base,
+    ekg
+
+  ghc-options: -O2 -threaded -Wall
 
 source-repository head
   type:     git
