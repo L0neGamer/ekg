@@ -52,6 +52,7 @@ library
     unordered-containers < 0.3
 
   ghc-options: -Wall
+  c-sources: cbits/counter.c
 
 benchmark benchmarks
   hs-source-dirs: benchmarks

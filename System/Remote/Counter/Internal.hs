@@ -1,3 +1,4 @@
+{-# LANGUAGE ForeignFunctionInterface #-}
 {-# OPTIONS_HADDOCK not-home #-}
 module System.Remote.Counter.Internal
     (
@@ -6,15 +7,14 @@ module System.Remote.Counter.Internal
     , read
     ) where
 
-import Data.IORef (IORef, newIORef, readIORef)
+import Data.Int
+import Foreign.Ptr (Ptr)
 import Prelude hiding (read)
 
 -- | A mutable, integer-valued counter.
-newtype Counter = C { unC :: IORef Int }
+newtype Counter = C { unC :: Ptr Int64 }
 
 -- | Create a new, zero initialized, counter.
-new :: IO Counter
-new = C `fmap` newIORef 0
+foreign import ccall unsafe "hs_counter_new" new :: IO Counter
 
-read :: Counter -> IO Int
-read = readIORef . unC
+foreign import ccall unsafe "hs_counter_read" read :: Counter -> IO Int

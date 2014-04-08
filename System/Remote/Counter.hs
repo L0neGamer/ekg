@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, ForeignFunctionInterface #-}
 -- | This module defines a type for mutable, integer-valued counters.
 -- Counters are non-negative, monotonically increasing values and can
 -- be used to track e.g. the number of requests served since program
@@ -10,19 +10,11 @@ module System.Remote.Counter
     , add
     ) where
 
-import Data.IORef (atomicModifyIORef)
-import Prelude hiding (subtract)
-
 import System.Remote.Counter.Internal
 
 -- | Increase the counter by one.
 inc :: Counter -> IO ()
-inc (C ref) = do
-    !_ <- atomicModifyIORef ref $ \ n -> let n' = n + 1 in (n', n')
-    return ()
+inc counter = add counter 1
 
 -- | Increase the counter by the given amount.
-add :: Counter -> Int -> IO ()
-add (C ref) i = do
-    !_ <- atomicModifyIORef ref $ \ n -> let n' = n + i in (n', n')
-    return ()
+foreign import ccall unsafe "hs_counter_add" add :: Counter -> Int -> IO ()
