@@ -57,7 +57,7 @@ startServer :: MetricStore
             -> S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
             -> Int           -- ^ Port to listen on (e.g. 8000)
             -> IO ()
-startServer (MetricStore counters gauges labels) host port = do
+startServer store host port = do
     -- Snap doesn't allow for non-numeric host names in
     -- 'Snap.setBind'. We work around that limitation by converting a
     -- possible non-numeric host name to a numeric address.
@@ -69,22 +69,22 @@ startServer (MetricStore counters gauges labels) host port = do
                Config.setHostname host $
                Config.setBind numericHost $
                Config.defaultConfig
-    httpServe conf (monitor counters gauges labels)
+    httpServe conf (monitor store)
 
 -- | The routes of the ekg monitor. They do not include the routes for its
 -- assets.
 monitorRoutes :: MonadSnap m
-              => IORef Counters -> IORef Gauges -> IORef Labels
+              => MetricStore
               -> [(S8.ByteString, m ())]
-monitorRoutes counters gauges labels =
-    [ ("",               jsonHandler $ serveAll counters gauges labels)
-    , ("combined",       jsonHandler $ serveCombined counters gauges labels)
-    , ("counters",       jsonHandler $ serveMany counters)
-    , ("counters/:name", textHandler $ serveOne counters)
-    , ("gauges",         jsonHandler $ serveMany gauges)
-    , ("gauges/:name",   textHandler $ serveOne gauges)
-    , ("labels",         jsonHandler $ serveMany labels)
-    , ("labels/:name",   textHandler $ serveOne labels)
+monitorRoutes store =
+    [ ("",               jsonHandler $ serveAll store)
+    , ("combined",       jsonHandler $ serveCombined store)
+    , ("counters",       jsonHandler $ serveMany (userCounters store))
+    , ("counters/:name", textHandler $ serveOne (userCounters store))
+    , ("gauges",         jsonHandler $ serveMany (userGauges store))
+    , ("gauges/:name",   textHandler $ serveOne (userGauges store))
+    , ("labels",         jsonHandler $ serveMany (userLabels store))
+    , ("labels/:name",   textHandler $ serveOne (userLabels store))
     ]
   where
     jsonHandler = wrapHandler "application/json"
@@ -95,10 +95,10 @@ monitorRoutes counters gauges labels =
         if S.null (rqPathInfo req) then handler else pass
 
 -- | A handler that can be installed into an existing Snap application.
-monitor :: IORef Counters -> IORef Gauges -> IORef Labels -> Snap ()
-monitor counters gauges labels = do
+monitor :: MetricStore -> Snap ()
+monitor store = do
     dataDir <- liftIO getDataDir
-    route (monitorRoutes counters gauges labels)
+    route (monitorRoutes store)
         <|> serveDirectory (dataDir </> "assets")
 
 -- | The Accept header of the request.
@@ -126,25 +126,23 @@ serveMany mapRef = do
 
 -- | Serve all counter, gauges and labels, built-in or not, as a
 -- nested JSON object.
-serveAll :: MonadSnap m
-         => IORef Counters -> IORef Gauges -> IORef Labels -> m ()
-serveAll counters gauges labels = do
+serveAll :: MonadSnap m => MetricStore -> m ()
+serveAll store = do
     req <- getRequest
     -- Workaround: Snap still matches requests to /foo to this handler
     -- if the Accept header is "application/json", even though such
     -- requests ought to go to the 'serveOne' handler.
     unless (S.null $ rqPathInfo req) pass
     modifyResponse $ setContentType "application/json"
-    bs <- liftIO $ buildAll counters gauges labels
+    bs <- liftIO $ buildAll store
     writeLBS bs
 
 -- | Serve all counters and gauges, built-in or not, as a flattened
 -- JSON object.
-serveCombined :: MonadSnap m
-              => IORef Counters -> IORef Gauges -> IORef Labels -> m ()
-serveCombined counters gauges labels = do
+serveCombined :: MonadSnap m => MetricStore -> m ()
+serveCombined store = do
     modifyResponse $ setContentType "application/json"
-    bs <- liftIO $ buildCombined counters gauges labels
+    bs <- liftIO $ buildCombined store
     writeLBS bs
 
 -- | Serve a single counter, as plain text.

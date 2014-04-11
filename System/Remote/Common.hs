@@ -341,22 +341,22 @@ buildMany mapRef = do
 
 -- | Serve all counter, gauges and labels, built-in or not, as a
 -- nested JSON object.
-buildAll :: IORef Counters -> IORef Gauges -> IORef Labels -> IO L.ByteString
-buildAll counters gauges labels = do
+buildAll :: MetricStore -> IO L.ByteString
+buildAll store = do
     gcStats <- getGcStats
-    counterList <- readAllRefsAsJson counters
-    gaugeList <- readAllRefsAsJson gauges
-    labelList <- readAllRefsAsJson labels
+    counterList <- readAllRefsAsJson (userCounters store)
+    gaugeList <- readAllRefsAsJson (userGauges store)
+    labelList <- readAllRefsAsJson (userLabels store)
     time <- getTimeMillis
     return $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList
         labelList time
 
-buildCombined :: IORef Counters -> IORef Gauges -> IORef Labels -> IO L.ByteString
-buildCombined counters gauges labels = do
+buildCombined :: MetricStore -> IO L.ByteString
+buildCombined store = do
     gcStats <- getGcStats
-    counterList <- readAllRefsAsJson counters
-    gaugeList <- readAllRefsAsJson gauges
-    labelList <- readAllRefsAsJson labels
+    counterList <- readAllRefsAsJson (userCounters store)
+    gaugeList <- readAllRefsAsJson (userGauges store)
+    labelList <- readAllRefsAsJson (userLabels store)
     time <- getTimeMillis
     return $ A.encode $ A.toJSON $ Combined $
         Stats gcStats counterList gaugeList labelList time
