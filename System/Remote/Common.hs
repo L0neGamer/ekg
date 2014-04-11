@@ -36,7 +36,6 @@ module System.Remote.Common
     , buildMany
     , buildAll
     , buildCombined
-    , buildOne
     ) where
 
 import Control.Applicative ((<$>))
@@ -348,13 +347,13 @@ partitionGcStats s@(Stats.GCStats {..}) = (counters, gauges)
 
 ------------------------------------------------------------------------
 
+-- TODO: Move the sampling into 'buildMany'.
+
 -- | Serve a collection of counters or gauges, as a JSON object.
-buildMany :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r)
-    -> IO L.ByteString
-buildMany mapRef = do
-    list <- readAllRefsAsJson mapRef
-    time <- getTimeMillis
-    return $ A.encode $ A.toJSON $ Group list time
+buildMany :: A.ToJSON t => (M.HashMap T.Text t) -> IO L.ByteString
+buildMany metrics = do
+    return $! A.encode $ A.toJSON $ Assocs $ map (mapSnd Json) $
+        M.toList metrics
 {-# INLINABLE buildMany #-}
 
 -- | Serve all counter, gauges and labels, built-in or not, as a
@@ -377,24 +376,6 @@ buildCombined store = do
     metrics <- sampleCombined store
     return $ A.encode $ A.toJSON $ Assocs $ map (mapSnd Json) $
         M.toList metrics
-
-buildOne :: (Ref r t, Show t)
-    => IORef (M.HashMap T.Text r) -> T.Text
-    -> IO (Maybe S.ByteString)
-buildOne refs name = do
-    m <- readIORef refs
-    case M.lookup name m of
-        Just counter -> do
-            val <- read counter
-            return $ Just $ S8.pack $ show val
-        Nothing ->
-            -- Try built-in (e.g. GC) refs
-            case Map.lookup name builtinCounters of
-                Just f -> do
-                    gcStats <- liftIO getGcStats
-                    return $ Just $ S8.pack $ f gcStats
-                Nothing -> return Nothing
-{-# INLINABLE buildOne #-}
 
 getGcStats :: IO Stats.GCStats
 #if MIN_VERSION_base(4,6,0)

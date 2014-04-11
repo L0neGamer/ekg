@@ -79,12 +79,12 @@ monitorRoutes :: MonadSnap m
 monitorRoutes store =
     [ ("",               jsonHandler $ serveAll store)
     , ("combined",       jsonHandler $ serveCombined store)
-    , ("counters",       jsonHandler $ serveMany (userCounters store))
-    , ("counters/:name", textHandler $ serveOne (userCounters store))
-    , ("gauges",         jsonHandler $ serveMany (userGauges store))
-    , ("gauges/:name",   textHandler $ serveOne (userGauges store))
-    , ("labels",         jsonHandler $ serveMany (userLabels store))
-    , ("labels/:name",   textHandler $ serveOne (userLabels store))
+    , ("counters",       jsonHandler $ serveMany (sampleCounters store))
+    , ("counters/:name", textHandler $ serveOne (flip sampleCounter store))
+    , ("gauges",         jsonHandler $ serveMany (sampleGauges store))
+    , ("gauges/:name",   textHandler $ serveOne (flip sampleGauge store))
+    , ("labels",         jsonHandler $ serveMany (sampleLabels store))
+    , ("labels/:name",   textHandler $ serveOne (flip sampleLabel store))
     ]
   where
     jsonHandler = wrapHandler "application/json"
@@ -116,11 +116,12 @@ format fmt action = do
         _ -> pass
 
 -- | Serve a collection of counters or gauges, as a JSON object.
-serveMany :: (Ref r t, A.ToJSON t, MonadSnap m)
-          => IORef (M.HashMap T.Text r) -> m ()
-serveMany mapRef = do
+serveMany :: (A.ToJSON t, MonadSnap m)
+          => (IO (M.HashMap T.Text t)) -> m ()
+serveMany sample = do
+    metrics <- liftIO sample
     modifyResponse $ setContentType "application/json"
-    bs <- liftIO $ buildMany mapRef
+    bs <- liftIO $ buildMany metrics
     writeLBS bs
 {-# INLINABLE serveMany #-}
 
@@ -146,9 +147,9 @@ serveCombined store = do
     writeLBS bs
 
 -- | Serve a single counter, as plain text.
-serveOne :: (Ref r t, Show t, MonadSnap m)
-         => IORef (M.HashMap T.Text r) -> m ()
-serveOne refs = do
+serveOne :: (Show t, MonadSnap m)
+         => (T.Text -> IO (Maybe t)) -> m ()
+serveOne sample = do
     modifyResponse $ setContentType "text/plain"
     req <- getRequest
     let mname = T.decodeUtf8 <$> join
@@ -156,10 +157,10 @@ serveOne refs = do
     case mname of
         Nothing -> pass
         Just name -> do
-            mbs <- liftIO $ buildOne refs name
-            case mbs of
-                Just bs -> writeBS bs
-                Nothing -> do
+            mmetric <- liftIO $ sample name
+            case mmetric of
+                Just val -> writeBS $ S8.pack $ show val
+                Nothing  -> do
                     modifyResponse $ setResponseStatus 404 "Not Found"
                     r <- getResponse
                     finishWith r
