@@ -161,12 +161,12 @@ data Metrics = Metrics
     }
 
 -- | Sample all metrics.
-sampleAll :: Server -> IO Metrics
-sampleAll server = do
+sampleAll :: MetricStore -> IO Metrics
+sampleAll store = do
     time <- getTimeMs
-    counters <- readAllRefs (userCounters $ metricStore server)
-    gauges <- readAllRefs (userGauges $ metricStore server)
-    labels <- readAllRefs (userLabels $ metricStore server)
+    counters <- readAllRefs (userCounters store)
+    gauges <- readAllRefs (userGauges store)
+    labels <- readAllRefs (userLabels store)
     (gcCounters, gcGauges) <- partitionGcStats <$> getGcStats
     let allCounters = counters ++ gcCounters ++ [("server_timestamp_ms", time)]
         allGauges   = gauges ++ gcGauges
@@ -183,23 +183,24 @@ data Metric = Counter {-# UNPACK #-} !Int
             | Gauge {-# UNPACK #-} !Int
             | Label {-# UNPACK #-} !T.Text
 
-sampleCombined :: Server -> IO (M.HashMap T.Text Metric)
-sampleCombined server = do
-    metrics <- sampleAll server
+sampleCombined :: MetricStore -> IO (M.HashMap T.Text Metric)
+sampleCombined store = do
+    metrics <- sampleAll store
     -- This assumes that the same name wasn't used for two different
     -- metric types.
     return $! M.unions [M.map Counter (metricsCounters metrics),
                         M.map Gauge (metricsGauges metrics),
                         M.map Label (metricsLabels metrics)]
 
-sampleCounters :: Server -> IO (M.HashMap T.Text Int)
-sampleCounters server = metricsCounters <$> sampleAll server
+sampleCounters :: MetricStore -> IO (M.HashMap T.Text Int)
+sampleCounters store = metricsCounters <$> sampleAll store
 
-sampleGauges :: Server -> IO (M.HashMap T.Text Int)
-sampleGauges server = metricsGauges <$> sampleAll server
 
-sampleLabels :: Server -> IO (M.HashMap T.Text T.Text)
-sampleLabels server = metricsLabels <$> sampleAll server
+sampleGauges :: MetricStore -> IO (M.HashMap T.Text Int)
+sampleGauges store = metricsGauges <$> sampleAll store
+
+sampleLabels :: MetricStore -> IO (M.HashMap T.Text T.Text)
+sampleLabels store = metricsLabels <$> sampleAll store
 
 ------------------------------------------------------------------------
 -- * JSON serialization
@@ -342,24 +343,23 @@ buildMany mapRef = do
 -- | Serve all counter, gauges and labels, built-in or not, as a
 -- nested JSON object.
 buildAll :: MetricStore -> IO L.ByteString
-buildAll store = do
-    gcStats <- getGcStats
-    counterList <- readAllRefsAsJson (userCounters store)
-    gaugeList <- readAllRefsAsJson (userGauges store)
-    labelList <- readAllRefsAsJson (userLabels store)
-    time <- getTimeMillis
-    return $ A.encode $ A.toJSON $ Stats gcStats counterList gaugeList
-        labelList time
+buildAll = buildCombined
+-- We're keeping this function from b/w compat but it now behaves
+-- as 'buildCombined'.
+
+instance A.ToJSON Metric where
+    toJSON (Counter n) = A.toJSON n
+    toJSON (Gauge n)   = A.toJSON n
+    toJSON (Label l)   = A.toJSON l
+
+mapSnd :: (b -> c) -> (a, b) -> (a, c)
+mapSnd f (x, y) = (x, f y)
 
 buildCombined :: MetricStore -> IO L.ByteString
 buildCombined store = do
-    gcStats <- getGcStats
-    counterList <- readAllRefsAsJson (userCounters store)
-    gaugeList <- readAllRefsAsJson (userGauges store)
-    labelList <- readAllRefsAsJson (userLabels store)
-    time <- getTimeMillis
-    return $ A.encode $ A.toJSON $ Combined $
-        Stats gcStats counterList gaugeList labelList time
+    metrics <- sampleCombined store
+    return $ A.encode $ A.toJSON $ Assocs $ map (mapSnd Json) $
+        M.toList metrics
 
 buildOne :: (Ref r t, Show t)
     => IORef (M.HashMap T.Text r) -> T.Text
