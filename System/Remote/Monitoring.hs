@@ -221,5 +221,6 @@ forkServer host port = do
     counters <- newIORef M.empty
     gauges <- newIORef M.empty
     labels <- newIORef M.empty
-    tid <- forkIO $ startServer counters gauges labels host port
-    return $! Server tid counters gauges labels
+    let store = MetricStore counters gauges labels
+    tid <- forkIO $ startServer store host port
+    return $! Server tid store

@@ -53,11 +53,11 @@ getNumericHostAddress host = do
     unsupportedAddressError = throwIO $
         userError $ "unsupported address: " ++ S8.unpack host
 
-startServer :: IORef Counters -> IORef Gauges -> IORef Labels
+startServer :: MetricStore
             -> S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
             -> Int           -- ^ Port to listen on (e.g. 8000)
             -> IO ()
-startServer counters gauges labels host port = do
+startServer (MetricStore counters gauges labels) host port = do
     -- Snap doesn't allow for non-numeric host names in
     -- 'Snap.setBind'. We work around that limitation by converting a
     -- possible non-numeric host name to a numeric address.

@@ -12,6 +12,7 @@ module System.Remote.Common
     , Gauges
     , Labels
     , Server(..)
+    , MetricStore(..)
 
     , Ref(..)
 
@@ -76,9 +77,7 @@ type Labels = M.HashMap T.Text Label
 -- Created by 'forkServer'.
 data Server = Server {
       threadId :: {-# UNPACK #-} !ThreadId
-    , userCounters :: !(IORef Counters)
-    , userGauges :: !(IORef Gauges)
-    , userLabels :: !(IORef Labels)
+    , metricStore :: {-# UNPACK #-} !MetricStore
     }
 
 ------------------------------------------------------------------------
@@ -125,7 +124,7 @@ getRef name mapRef = do
 getCounter :: T.Text  -- ^ Counter name
            -> Server  -- ^ Server that will serve the counter
            -> IO Counter
-getCounter name server = getRef name (userCounters server)
+getCounter name server = getRef name (userCounters $ metricStore server)
 
 -- | Return the gauge associated with the given name and server.
 -- Multiple calls to 'getGauge' with the same arguments will return
@@ -134,7 +133,7 @@ getCounter name server = getRef name (userCounters server)
 getGauge :: T.Text  -- ^ Gauge name
          -> Server  -- ^ Server that will serve the gauge
          -> IO Gauge
-getGauge name server = getRef name (userGauges server)
+getGauge name server = getRef name (userGauges $ metricStore server)
 
 -- | Return the label associated with the given name and server.
 -- Multiple calls to 'getLabel' with the same arguments will return
@@ -143,10 +142,16 @@ getGauge name server = getRef name (userGauges server)
 getLabel :: T.Text  -- ^ Label name
          -> Server  -- ^ Server that will serve the label
          -> IO Label
-getLabel name server = getRef name (userLabels server)
+getLabel name server = getRef name (userLabels $ metricStore server)
 
 ------------------------------------------------------------------------
 -- * Sampling
+
+data MetricStore = MetricStore
+    { userCounters :: !(IORef Counters)
+    , userGauges   :: !(IORef Gauges)
+    , userLabels   :: !(IORef Labels)
+    }
 
 -- | A sample of some metrics.
 data Metrics = Metrics
@@ -159,9 +164,9 @@ data Metrics = Metrics
 sampleAll :: Server -> IO Metrics
 sampleAll server = do
     time <- getTimeMs
-    counters <- readAllRefs (userCounters server)
-    gauges <- readAllRefs (userGauges server)
-    labels <- readAllRefs (userLabels server)
+    counters <- readAllRefs (userCounters $ metricStore server)
+    gauges <- readAllRefs (userGauges $ metricStore server)
+    labels <- readAllRefs (userLabels $ metricStore server)
     (gcCounters, gcGauges) <- partitionGcStats <$> getGcStats
     let allCounters = counters ++ gcCounters ++ [("server_timestamp_ms", time)]
         allGauges   = gauges ++ gcGauges
