@@ -41,17 +41,13 @@ module System.Remote.Common
 import Control.Applicative ((<$>))
 import Control.Concurrent (ThreadId)
 import Control.Monad (forM)
-import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson.Encode as A
 import Data.Aeson.Types ((.=))
 import qualified Data.Aeson.Types as A
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.HashMap.Strict as M
 import Data.IORef (IORef, atomicModifyIORef, readIORef)
 import Data.Int (Int64)
-import qualified Data.Map as Map
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified GHC.Stats as Stats
@@ -300,13 +296,6 @@ readAllRefs mapRef = do
         return (name, val)
 {-# INLINABLE readAllRefs #-}
 
-readAllRefsAsJson :: (Ref r t, A.ToJSON t) => IORef (M.HashMap T.Text r)
-                  -> IO [(T.Text, Json)]
-readAllRefsAsJson mapRef =
-    map (\ (x, y) -> (x, Json y)) `fmap` readAllRefs mapRef
-{-# INLINABLE readAllRefsAsJson #-}
-
-
 -- Existential wrapper used for OO-style polymorphism.
 data Json = forall a. A.ToJSON a => Json a
 
@@ -410,37 +399,8 @@ emptyGCStats = Stats.GCStats
 getGcStats = Stats.getGCStats
 #endif
 
--- | A list of all built-in (e.g. GC) counters, together with a
--- pretty-printing function for each.
-builtinCounters :: Map.Map T.Text (Stats.GCStats -> String)
-builtinCounters = Map.fromList [
-      ("bytes_allocated"          , show . Stats.bytesAllocated)
-    , ("num_gcs"                  , show . Stats.numGcs)
-    , ("max_bytes_used"           , show . Stats.maxBytesUsed)
-    , ("num_bytes_usage_samples"  , show . Stats.numByteUsageSamples)
-    , ("cumulative_bytes_used"    , show . Stats.cumulativeBytesUsed)
-    , ("bytes_copied"             , show . Stats.bytesCopied)
-    , ("current_bytes_used"       , show . Stats.currentBytesUsed)
-    , ("current_bytes_slop"       , show . Stats.currentBytesSlop)
-    , ("max_bytes_slop"           , show . Stats.maxBytesSlop)
-    , ("peak_megabytes_allocated" , show . Stats.peakMegabytesAllocated)
-    , ("mutator_cpu_seconds"      , show . Stats.mutatorCpuSeconds)
-    , ("mutator_wall_seconds"     , show . Stats.mutatorWallSeconds)
-    , ("gc_cpu_seconds"           , show . Stats.gcCpuSeconds)
-    , ("gc_wall_seconds"          , show . Stats.gcWallSeconds)
-    , ("cpu_seconds"              , show . Stats.cpuSeconds)
-    , ("wall_seconds"             , show . Stats.wallSeconds)
-    , ("par_tot_bytes_copied"     , show . gcParTotBytesCopied)
-    , ("par_avg_bytes_copied"     , show . gcParTotBytesCopied)
-    , ("par_max_bytes_copied"     , show . Stats.parMaxBytesCopied)
-    ]
-
 ------------------------------------------------------------------------
 -- Utilities for working with timestamps
-
--- | Return the number of milliseconds since epoch.
-getTimeMillis :: IO Double
-getTimeMillis = (realToFrac . (* 1000)) `fmap` getPOSIXTime
 
 -- | Helper to work around rename in GHC.Stats in base-4.6.
 gcParTotBytesCopied :: Stats.GCStats -> Int64

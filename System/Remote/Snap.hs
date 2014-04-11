@@ -13,7 +13,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.Function (on)
 import qualified Data.HashMap.Strict as M
-import Data.IORef (IORef)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Maybe (listToMaybe)
