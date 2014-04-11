@@ -21,7 +21,6 @@ module System.Remote.Common
     , getLabel
 
       -- * Sampling
-    , Number(..)
     , Metrics(..)
     , sampleAll
     , Metric(..)
@@ -151,29 +150,33 @@ getLabel name server = getRef name (userLabels server)
 
 -- | A sample of some metrics.
 data Metrics = Metrics
-    { metricsCounters :: !(M.HashMap T.Text Number)
-    , metricsGauges   :: !(M.HashMap T.Text Number)
+    { metricsCounters :: !(M.HashMap T.Text Int)
+    , metricsGauges   :: !(M.HashMap T.Text Int)
     , metricsLabels   :: !(M.HashMap T.Text T.Text)
     }
 
 -- | Sample all metrics.
 sampleAll :: Server -> IO Metrics
 sampleAll server = do
+    time <- getTimeMs
     counters <- readAllRefs (userCounters server)
     gauges <- readAllRefs (userGauges server)
     labels <- readAllRefs (userLabels server)
     (gcCounters, gcGauges) <- partitionGcStats <$> getGcStats
-    let allCounters = (map (mapSnd (I . fromIntegral)) counters ++ gcCounters)
-        allGauges   = (map (mapSnd (I . fromIntegral)) gauges ++ gcGauges)
+    let allCounters = counters ++ gcCounters ++ [("server_timestamp_ms", time)]
+        allGauges   = gauges ++ gcGauges
     return $! Metrics
         (M.fromList allCounters)
         (M.fromList allGauges)
         (M.fromList labels)
+  where
+    getTimeMs :: IO Int
+    getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
 
 -- | The kind of metrics that can be tracked.
-data Metric = Counter !Number
-            | Gauge !Number
-            | Label !T.Text
+data Metric = Counter {-# UNPACK #-} !Int
+            | Gauge {-# UNPACK #-} !Int
+            | Label {-# UNPACK #-} !T.Text
 
 sampleCombined :: Server -> IO (M.HashMap T.Text Metric)
 sampleCombined server = do
@@ -184,19 +187,14 @@ sampleCombined server = do
                         M.map Gauge (metricsGauges metrics),
                         M.map Label (metricsLabels metrics)]
 
-sampleCounters :: Server -> IO (M.HashMap T.Text Number)
+sampleCounters :: Server -> IO (M.HashMap T.Text Int)
 sampleCounters server = metricsCounters <$> sampleAll server
 
-sampleGauges :: Server -> IO (M.HashMap T.Text Number)
+sampleGauges :: Server -> IO (M.HashMap T.Text Int)
 sampleGauges server = metricsGauges <$> sampleAll server
 
 sampleLabels :: Server -> IO (M.HashMap T.Text T.Text)
 sampleLabels server = metricsLabels <$> sampleAll server
-
--- | Apply a function to the second component of a pair and evaluate
--- the result to WHNF.
-mapSnd :: (b -> c) -> (a, b) -> (a, c)
-mapSnd f (x, y) = let !fy = f y in (x, fy)
 
 ------------------------------------------------------------------------
 -- * JSON serialization
@@ -293,41 +291,36 @@ data Json = forall a. A.ToJSON a => Json a
 instance A.ToJSON Json where
     toJSON (Json x) = A.toJSON x
 
--- | Many metrics can be either integer or floating point values. This
--- is captured by the 'Number' data type.
-data Number = I !Int64
-            | D !Double
-
-instance A.ToJSON Number where
-    toJSON (I n) = A.toJSON n
-    toJSON (D n) = A.toJSON n
+-- | Convert seconds to milliseconds.
+toMs :: Double -> Int
+toMs s = round (s * 1000.0)
 
 -- | Partition GC statistics into counters and gauges.
-partitionGcStats :: Stats.GCStats -> ([(T.Text, Number)], [(T.Text, Number)])
+partitionGcStats :: Stats.GCStats -> ([(T.Text, Int)], [(T.Text, Int)])
 partitionGcStats s@(Stats.GCStats {..}) = (counters, gauges)
   where
     counters = [
-          ("bytes_allocated"          , I bytesAllocated)
-        , ("num_gcs"                  , I numGcs)
-        , ("num_bytes_usage_samples"  , I numByteUsageSamples)
-        , ("cumulative_bytes_used"    , I cumulativeBytesUsed)
-        , ("bytes_copied"             , I bytesCopied)
-        , ("mutator_cpu_seconds"      , D mutatorCpuSeconds)
-        , ("mutator_wall_seconds"     , D mutatorWallSeconds)
-        , ("gc_cpu_seconds"           , D gcCpuSeconds)
-        , ("gc_wall_seconds"          , D gcWallSeconds)
-        , ("cpu_seconds"              , D cpuSeconds)
-        , ("wall_seconds"             , D wallSeconds)
+          ("bytes_allocated"          , fromIntegral bytesAllocated)
+        , ("num_gcs"                  , fromIntegral numGcs)
+        , ("num_bytes_usage_samples"  , fromIntegral numByteUsageSamples)
+        , ("cumulative_bytes_used"    , fromIntegral cumulativeBytesUsed)
+        , ("bytes_copied"             , fromIntegral bytesCopied)
+        , ("mutator_cpu_ms"           , toMs mutatorCpuSeconds)
+        , ("mutator_wall_ms"          , toMs mutatorWallSeconds)
+        , ("gc_cpu_ms"                , toMs gcCpuSeconds)
+        , ("gc_wall_ms"               , toMs gcWallSeconds)
+        , ("cpu_ms"                   , toMs cpuSeconds)
+        , ("wall_ms"                  , toMs wallSeconds)
         ]
     gauges = [
-          ("max_bytes_used"           , I maxBytesUsed)
-        , ("current_bytes_used"       , I currentBytesUsed)
-        , ("current_bytes_slop"       , I currentBytesSlop)
-        , ("max_bytes_slop"           , I maxBytesSlop)
-        , ("peak_megabytes_allocated" , I peakMegabytesAllocated)
-        , ("par_tot_bytes_copied"     , I (gcParTotBytesCopied s))
-        , ("par_avg_bytes_copied"     , I (gcParTotBytesCopied s))
-        , ("par_max_bytes_copied"     , I parMaxBytesCopied)
+          ("max_bytes_used"           , fromIntegral maxBytesUsed)
+        , ("current_bytes_used"       , fromIntegral currentBytesUsed)
+        , ("current_bytes_slop"       , fromIntegral currentBytesSlop)
+        , ("max_bytes_slop"           , fromIntegral maxBytesSlop)
+        , ("peak_megabytes_allocated" , fromIntegral peakMegabytesAllocated)
+        , ("par_tot_bytes_copied"     , fromIntegral (gcParTotBytesCopied s))
+        , ("par_avg_bytes_copied"     , fromIntegral (gcParTotBytesCopied s))
+        , ("par_max_bytes_copied"     , fromIntegral parMaxBytesCopied)
         ]
 
 ------------------------------------------------------------------------
