@@ -27,8 +27,11 @@ module System.Remote.Common
     , Metric(..)
     , sampleCombined
     , sampleCounters
+    , sampleCounter
     , sampleGauges
+    , sampleGauge
     , sampleLabels
+    , sampleLabel
 
     , buildMany
     , buildAll
@@ -195,12 +198,26 @@ sampleCombined store = do
 sampleCounters :: MetricStore -> IO (M.HashMap T.Text Int)
 sampleCounters store = metricsCounters <$> sampleAll store
 
+sampleCounter :: T.Text -> MetricStore -> IO (Maybe Int)
+sampleCounter name store = do
+    counters <- sampleCounters store
+    return $! M.lookup name counters
 
 sampleGauges :: MetricStore -> IO (M.HashMap T.Text Int)
 sampleGauges store = metricsGauges <$> sampleAll store
 
+sampleGauge :: T.Text -> MetricStore -> IO (Maybe Int)
+sampleGauge name store = do
+    gauges <- sampleGauges store
+    return $! M.lookup name gauges
+
 sampleLabels :: MetricStore -> IO (M.HashMap T.Text T.Text)
 sampleLabels store = metricsLabels <$> sampleAll store
+
+sampleLabel :: T.Text -> MetricStore -> IO (Maybe T.Text)
+sampleLabel name store = do
+    labels <- sampleLabels store
+    return $! M.lookup name labels
 
 ------------------------------------------------------------------------
 -- * JSON serialization
