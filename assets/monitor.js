@@ -115,7 +115,7 @@ $(document).ready(function () {
             }
             alertVisible = false;
             for (var i = 0; i < listeners.length; i++) {
-                listeners[i](stats, stats.server_timestamp_millis);
+                listeners[i](stats, stats.ekg.server_timestamp_ms.val);
             }
         }
 
@@ -160,7 +160,7 @@ $(document).ready(function () {
                                                  prev_stats, prev_time)]);
             }
 
-            // zip lengends with data
+            // zip legends with data
             var res = [];
             for(var i = 0; i < series.length; i++)
                 res.push({ label: series[i].label, data: data[i] });
@@ -195,8 +195,10 @@ $(document).ready(function () {
             return graph_fn(key, stats, time, prev_stats, prev_time);
         }
 
+        // jQuery has problem with IDs containing dots.
+        var plotId = key.replace(/\./g, "-") + "-plot";
         $("#plots:last").append(
-            '<div id="' + key + '-plot" class="plot-container">' +
+            '<div id="' + plotId + '" class="plot-container">' +
                 '<img src="cross.png" class="close-button"><h3>' + key +
                 '</h3><div class="plot"></div></div>');
         var plot = $("#plots > .plot-container:last > div");
@@ -204,7 +206,7 @@ $(document).ready(function () {
                 [{ label: label_fn(key), fn: getStats }],
                 { yaxis: { tickFormatter: suffixFormatterGeneric } });
 
-        var plotContainer = $("#" + key + "-plot");
+        var plotContainer = $("#" + plotId);
         var closeButton = plotContainer.find("img");
         closeButton.hide();
         closeButton.click(function () {
@@ -223,56 +225,91 @@ $(document).ready(function () {
         );
     }
 
-    function addDynamicCounters(table, group_fn, graph_fn, label_fn) {
-        var counters = {};
-        function onDataReceived(stats, time) {
-            $.each(group_fn(stats), function (key, value) {
-                var elem;
-                if (key in counters) {
-                    elem = counters[key];
-                } else {
-                    // Add UI element
-                    table.find("tbody:last").append(
-                        '<tr><td>' + key +
-                            ' <img src="chart_line_add.png" class="graph-button"' +
-                            ' width="16" height="16"' +
-                            ' alt="Add graph" title="Add graph"></td>' +
-                            '<td class="value">N/A</td></tr>');
-                    elem = table.find("tbody > tr > td:last");
-                    counters[key] = elem;
+    function addMetrics(table) {
+        var COUNTER = "c";
+        var GAUGE = "g";
+        var metrics = {};
 
-                    var button = table.find("tbody > tr:last > td:first > img");
-                    button.click(function () {
-                        addDynamicPlot(key, button, graph_fn, label_fn);
-                        $(this).hide();
+        function makeDataGetter(key) {
+            var pieces = key.split(".");
+            function get(key, stats, time, prev_stats, prev_time) {
+                var value = stats;
+                $.each(pieces, function(unused_index, piece) {
+                    value = value[piece];
+                });
+                if (value.type === COUNTER) {
+                    if (prev_stats == undefined)
+                        return null;
+                    var prev_value = prev_stats;
+                    $.each(pieces, function(unused_index, piece) {
+                        prev_value = prev_value[piece];
                     });
+                    return 1000 * (value.val - prev_value.val) /
+                        (time - prev_time);
+                } else {  // value.type === GAUGE
+                    return value.val;
                 }
-                if (!paused)
-                    elem.text(commaify(value));
-            });
+            }
+            return get;
         }
 
-        subscribe(onDataReceived);
-    }
+        function counterLabel(label) {
+            return label + "/s";
+        }
 
-    function addDynamicLabels(table, group_fn) {
-        var labels = {};
-        function onDataReceived(stats, time) {
-            $.each(group_fn(stats), function (key, value) {
-                var elem;
-                if (key in labels) {
-                    elem = labels[key];
-                } else {
-                    // Add UI element
-                    table.find("tbody:last").append(
-                        '<tr><td>' + key + '</td>' +
-                            '<td class="string">N/A</td></tr>');
-                    elem = table.find("tbody > tr > td:last");
-                    labels[key] = elem;
+        function gaugeLabel(label) {
+            return label;
+        }
+
+        /** Adds the table row. */
+        function addElem(key, value) {
+            var elem;
+            if (key in metrics) {
+                elem = metrics[key];
+            } else {
+                // Add UI element
+                table.find("tbody:last").append(
+                    '<tr><td>' + key +
+                        ' <img src="chart_line_add.png" class="graph-button"' +
+                        ' width="16" height="16"' +
+                        ' alt="Add graph" title="Add graph"></td>' +
+                        '<td class="value">N/A</td></tr>');
+                elem = table.find("tbody > tr > td:last");
+                metrics[key] = elem;
+
+                var button = table.find("tbody > tr:last > td:first > img");
+                var graph_fn = makeDataGetter(key);
+                var label_fn = gaugeLabel;
+                if (value.type === COUNTER) {
+                    label_fn = counterLabel;
                 }
-                if (!paused)
-                    elem.text(value);
-            });
+                button.click(function () {
+                    addDynamicPlot(key, button, graph_fn, label_fn);
+                    $(this).hide();
+                });
+            }
+            if (!paused) {
+                var val = value.val;
+                if ($.inArray(value.type, [COUNTER, GAUGE]) !== -1) {
+                    val = commaify(val);
+                }
+                elem.text(val);
+            }
+        }
+
+        /** Updates UI for all metrics. */
+        function onDataReceived(stats, time) {
+            function build(prefix, obj) {
+                $.each(obj, function (suffix, value) {
+                    if (value.hasOwnProperty("val")) {
+                        var key = prefix + suffix;
+                        addElem(key, value);
+                    } else {
+                        build(prefix + suffix + '.', value);
+                    }
+                });
+            }
+            build('', stats);
         }
 
         subscribe(onDataReceived);
@@ -281,42 +318,44 @@ $(document).ready(function () {
     function initAll() {
         // Metrics
         var current_bytes_used = function (stats) {
-            return stats.gauges.current_bytes_used;
+            return stats.rts.gc.current_bytes_used.val;
         };
         var max_bytes_used = function (stats) {
-            return stats.gauges.max_bytes_used;
+            return stats.rts.gc.max_bytes_used.val;
         };
         var max_bytes_slop = function (stats) {
-            return stats.gauges.max_bytes_slop;
+            return stats.rts.gc.max_bytes_slop.val;
         };
         var current_bytes_slop = function (stats) {
-            return stats.gauges.current_bytes_slop;
+            return stats.rts.gc.current_bytes_slop.val;
         };
         var productivity_wall_percent = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            var mutator_seconds = stats.counters.mutator_wall_seconds -
-                prev_stats.counters.mutator_wall_seconds;
-            var gc_seconds = stats.counters.gc_wall_seconds -
-                prev_stats.counters.gc_wall_seconds;
-            return 100 * mutator_seconds / (mutator_seconds + gc_seconds);
+            var mutator_ms = stats.rts.gc.mutator_wall_ms.val -
+                prev_stats.rts.gc.mutator_wall_ms.val;
+            var gc_ms = stats.rts.gc.gc_wall_ms.val -
+                prev_stats.rts.gc.gc_wall_ms.val;
+            return 100 * mutator_ms / (mutator_ms + gc_ms);
         };
         var productivity_cpu_percent = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            var mutator_seconds = stats.counters.mutator_cpu_seconds -
-                prev_stats.counters.mutator_cpu_seconds;
-            var gc_seconds = stats.counters.gc_cpu_seconds -
-                prev_stats.counters.gc_cpu_seconds;
-            return 100 * mutator_seconds / (mutator_seconds + gc_seconds);
+            var mutator_ms = stats.rts.gc.mutator_cpu_ms.val -
+                prev_stats.rts.gc.mutator_cpu_ms.val;
+            var gc_ms = stats.rts.gc.gc_cpu_ms.val -
+                prev_stats.rts.gc.gc_cpu_ms.val;
+            return 100 * mutator_ms / (mutator_ms + gc_ms);
         };
         var allocation_rate = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            return 1000 * (stats.counters.bytes_allocated -
-                           prev_stats.counters.bytes_allocated) /
+            return 1000 * (stats.rts.gc.bytes_allocated.val -
+                           prev_stats.rts.gc.bytes_allocated.val) /
                 (time - prev_time);
         };
+
+        addMetrics($("#metric-table"));
 
         // Plots
         addPlot($("#current-bytes-used-plot > div"),
@@ -330,7 +369,7 @@ $(document).ready(function () {
                  { label: "cpu time", fn: productivity_cpu_percent }],
                 { yaxis: { tickDecimals: 1, tickFormatter: percentFormatter } });
 
-        // Counters
+        // GC and memory statistics
         addCounter($("#max-bytes-used"), max_bytes_used, formatSuffix);
         addCounter($("#current-bytes-used"), current_bytes_used, formatSuffix);
         addCounter($("#max-bytes-slop"), max_bytes_slop, formatSuffix);
@@ -338,29 +377,6 @@ $(document).ready(function () {
         addCounter($("#productivity-wall"), productivity_wall_percent, formatPercent);
         addCounter($("#productivity-cpu"), productivity_cpu_percent, formatPercent);
         addCounter($("#allocation-rate"), allocation_rate, formatRate);
-
-        addDynamicCounters($("#counter-table"), function (stats) {
-            return stats.counters;
-        }, function (key, stats, time, prev_stats, prev_time) {
-            if (prev_stats == undefined)
-                return null;
-            return 1000 * (stats.counters[key] - prev_stats.counters[key]) /
-                (time - prev_time);
-        }, function (label) {
-            return label + "/s";
-        });
-
-        addDynamicCounters($("#gauge-table"), function (stats) {
-            return stats.gauges;
-        }, function (key, stats, time) {
-            return stats.gauges[key];
-        }, function (label) {
-            return label;
-        });
-
-        addDynamicLabels($("#label-table"), function (stats) {
-            return stats.labels;
-        });
     }
 
     initAll();
