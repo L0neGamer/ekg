@@ -31,6 +31,7 @@ library
 
   other-modules:
     Paths_ekg
+    System.Metrics
     System.Remote.Common
     System.Remote.Counter.Internal
     System.Remote.Gauge.Internal

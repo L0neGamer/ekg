@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 -- | This module provides remote monitoring of a running process over
 -- HTTP.  It can be used to run an HTTP server that provides both a
 -- web-based user interface and a machine-readable API (e.g. JSON.)
@@ -42,12 +40,13 @@ module System.Remote.Monitoring
 
 import Control.Concurrent (ThreadId, forkIO)
 import qualified Data.ByteString as S
-import qualified Data.HashMap.Strict as M
-import Data.IORef (newIORef)
+import qualified Data.Text as T
 import Prelude hiding (read)
 
-import System.Remote.Common
-
+import qualified System.Metrics as Metrics
+import System.Remote.Counter (Counter)
+import System.Remote.Gauge (Gauge)
+import System.Remote.Label (Label)
 import System.Remote.Snap
 
 -- $configuration
@@ -218,9 +217,47 @@ forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> Int           -- ^ Port to listen on (e.g. 8000)
            -> IO Server
 forkServer host port = do
-    counters <- newIORef M.empty
-    gauges <- newIORef M.empty
-    labels <- newIORef M.empty
-    let store = MetricStore counters gauges labels
+    store <- Metrics.newMetricStore
     tid <- forkIO $ startServer store host port
     return $! Server tid store
+
+------------------------------------------------------------------------
+-- * Types
+
+-- | A handle that can be used to control the monitoring server.
+-- Created by 'forkServer'.
+data Server = Server {
+      threadId :: {-# UNPACK #-} !ThreadId
+    , metricStore :: {-# UNPACK #-} !Metrics.MetricStore
+    }
+
+------------------------------------------------------------------------
+-- * User-defined counters, gauges and labels
+
+-- | Return the counter associated with the given name and server.
+-- Multiple calls to 'getCounter' with the same arguments will return
+-- the same counter.  The first time 'getCounter' is called for a
+-- given name and server, a new, zero-initialized counter will be
+-- returned.
+getCounter :: T.Text  -- ^ Counter name
+           -> Server  -- ^ Server that will serve the counter
+           -> IO Counter
+getCounter name server = Metrics.getCounter name (metricStore server)
+
+-- | Return the gauge associated with the given name and server.
+-- Multiple calls to 'getGauge' with the same arguments will return
+-- the same gauge.  The first time 'getGauge' is called for a given
+-- name and server, a new, zero-initialized gauge will be returned.
+getGauge :: T.Text  -- ^ Gauge name
+         -> Server  -- ^ Server that will serve the gauge
+         -> IO Gauge
+getGauge name server = Metrics.getGauge name (metricStore server)
+
+-- | Return the label associated with the given name and server.
+-- Multiple calls to 'getLabel' with the same arguments will return
+-- the same label.  The first time 'getLabel' is called for a given
+-- name and server, a new, empty label will be returned.
+getLabel :: T.Text  -- ^ Label name
+         -> Server  -- ^ Server that will serve the label
+         -> IO Label
+getLabel name server = Metrics.getLabel name (metricStore server)

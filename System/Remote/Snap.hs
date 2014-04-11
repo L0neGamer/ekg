@@ -32,6 +32,7 @@ import qualified Snap.Http.Server.Config as Config
 import Snap.Util.FileServe (serveDirectory)
 import System.FilePath ((</>))
 
+import System.Metrics
 import System.Remote.Common
 
 ------------------------------------------------------------------------
