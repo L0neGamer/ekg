@@ -1,6 +1,9 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE RecordWildCards #-}
 module System.Metrics
     (
@@ -46,19 +49,31 @@ import qualified System.Remote.Label.Internal as Label
 ------------------------------------------------------------------------
 -- * Types
 
-data MetricStore = MetricStore
-    { userCounters :: !(IORef Counters)
-    , userGauges   :: !(IORef Gauges)
-    , userLabels   :: !(IORef Labels)
+newtype MetricStore = MetricStore { metricMaps :: IORef MetricMaps }
+
+data MetricMaps = MetricMaps
+    { userCounters :: !Counters
+    , userGauges   :: !Gauges
+    , userLabels   :: !Labels
     }
+
+setUserCounters :: MetricMaps -> Counters -> MetricMaps
+setUserCounters maps counters = maps { userCounters = counters }
+
+setUserGauges :: MetricMaps -> Gauges -> MetricMaps
+setUserGauges maps gauges = maps { userGauges = gauges }
+
+setUserLabels :: MetricMaps -> Labels -> MetricMaps
+setUserLabels maps labels = maps { userLabels = labels }
 
 newMetricStore :: IO MetricStore
 newMetricStore = do
-    counters <- newIORef M.empty
-    gauges <- newIORef M.empty
-    labels <- newIORef M.empty
-    return $ MetricStore counters gauges labels
-
+    maps <- newIORef $ MetricMaps
+        { userCounters = M.empty
+        , userGauges = M.empty
+        , userLabels = M.empty
+        }
+    return $ MetricStore maps
 
 -- Map of user-defined counters.
 type Counters = M.HashMap T.Text Counter
@@ -92,18 +107,31 @@ instance Ref Label T.Text where
 -- under the given name, create a new one, insert it into the map and
 -- return it.
 getRef :: Ref r t
-       => T.Text                      -- ^ 'Ref' name
-       -> IORef (M.HashMap T.Text r)  -- ^ Server that will serve the 'Ref'
+       => T.Text
+       -> (MetricMaps -> M.HashMap T.Text r)
+       -> (MetricMaps -> M.HashMap T.Text r -> MetricMaps)
+       -- | Is this name in use by a metric of different type?
+       -> (MetricMaps -> Bool)
+       -> MetricStore
        -> IO r
-getRef name mapRef = do
+getRef name get set inUse store = do
     empty <- new
-    ref <- atomicModifyIORef mapRef $ \ m ->
-        case M.lookup name m of
-            Nothing  -> let m' = M.insert name empty m
-                        in (m', empty)
-            Just ref -> (m, ref)
+    ref <- atomicModifyIORef (metricMaps store) $ \ maps ->
+        if inUse maps
+        then alreadyInUseError name
+        else let !m = get maps
+             in case M.lookup name m of
+                 Nothing  -> let !m'    = M.insert name empty m
+                                 !maps' = set maps m'
+                             in (maps', empty)
+                 Just ref -> (maps, ref)
     return ref
 {-# INLINABLE getRef #-}
+
+alreadyInUseError :: T.Text -> a
+alreadyInUseError name =
+    error $ "The name \"" ++ show name ++ "\" is already taken " ++
+    "by a metric of different type."
 
 -- | Return the counter associated with the given name and metric
 -- store. Multiple calls to 'getCounter' with the same arguments will
@@ -113,7 +141,10 @@ getRef name mapRef = do
 getCounter :: T.Text       -- ^ Counter name
            -> MetricStore  -- ^ The metric store
            -> IO Counter
-getCounter name store = getRef name (userCounters store)
+getCounter name store = getRef name userCounters setUserCounters
+                        (\ MetricMaps{..} -> name `M.member` userGauges ||
+                                             name `M.member` userLabels)
+                        store
 
 -- | Return the gauge associated with the given name and metric store.
 -- Multiple calls to 'getGauge' with the same arguments will return
@@ -123,7 +154,10 @@ getCounter name store = getRef name (userCounters store)
 getGauge :: T.Text       -- ^ Gauge name
          -> MetricStore  -- ^ The metric store
          -> IO Gauge
-getGauge name store = getRef name (userGauges store)
+getGauge name store = getRef name userGauges setUserGauges
+                      (\ MetricMaps{..} -> name `M.member` userCounters ||
+                                           name `M.member` userLabels)
+                      store
 
 -- | Return the label associated with the given name and metric store.
 -- Multiple calls to 'getLabel' with the same arguments will return
@@ -132,7 +166,10 @@ getGauge name store = getRef name (userGauges store)
 getLabel :: T.Text       -- ^ Label name
          -> MetricStore  -- ^ The metric store
          -> IO Label
-getLabel name store = getRef name (userLabels store)
+getLabel name store = getRef name userLabels setUserLabels
+                      (\ MetricMaps{..} -> name `M.member` userCounters ||
+                                           name `M.member` userGauges)
+                      store
 
 ------------------------------------------------------------------------
 -- * Sampling
@@ -148,9 +185,10 @@ data Metrics = Metrics
 sampleAll :: MetricStore -> IO Metrics
 sampleAll store = do
     time <- getTimeMs
-    counters <- readAllRefs (userCounters store)
-    gauges <- readAllRefs (userGauges store)
-    labels <- readAllRefs (userLabels store)
+    MetricMaps{..} <- readIORef $ metricMaps store
+    counters <- readAllRefs userCounters
+    gauges <- readAllRefs userGauges
+    labels <- readAllRefs userLabels
     (gcCounters, gcGauges) <- partitionGcStats <$> getGcStats
     let allCounters = counters ++ gcCounters ++ [("server_timestamp_ms", time)]
         allGauges   = gauges ++ gcGauges
@@ -202,9 +240,8 @@ sampleLabel name store = do
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: Ref r t => IORef (M.HashMap T.Text r) -> IO [(T.Text, t)]
-readAllRefs mapRef = do
-    m <- readIORef mapRef
+readAllRefs :: Ref r t => M.HashMap T.Text r -> IO [(T.Text, t)]
+readAllRefs m = do
     forM (M.toList m) $ \ (name, ref) -> do
         val <- read ref
         return (name, val)
