@@ -177,7 +177,7 @@ data Metrics = Metrics
     { metricsCounters :: !(M.HashMap T.Text Int)
     , metricsGauges   :: !(M.HashMap T.Text Int)
     , metricsLabels   :: !(M.HashMap T.Text T.Text)
-    }
+    } deriving Show
 
 -- | Sample all metrics.
 sampleAll :: MetricStore -> IO Metrics

@@ -36,6 +36,7 @@ library
     System.Remote.Counter.Internal
     System.Remote.Gauge.Internal
     System.Remote.Label.Internal
+    System.Remote.Monitoring.Statsd
     System.Remote.Snap
 
   build-depends:
