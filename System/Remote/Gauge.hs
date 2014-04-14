@@ -36,4 +36,4 @@ subtract gauge = Atomic.subtract (unC gauge)
 
 -- | Set the gauge to the given value.
 set :: Gauge -> Int -> IO ()
-set gauge = Atomic.store (unC gauge)
+set gauge = Atomic.write (unC gauge)

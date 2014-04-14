@@ -12,6 +12,6 @@ StgInt hs_atomic_read(volatile const StgInt* atomic) {
   return *atomic;
 }
 
-void hs_atomic_store(volatile StgInt* atomic, StgInt n) {
+void hs_atomic_write(volatile StgInt* atomic, StgInt n) {
   *atomic = n;
 }

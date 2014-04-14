@@ -5,7 +5,7 @@ module Data.Atomic
       Atomic
     , new
     , read
-    , store
+    , write
     , inc
     , dec
     , add
@@ -34,10 +34,10 @@ read (C fp) = withForeignPtr fp cRead
 foreign import ccall unsafe "hs_atomic_read" cRead :: Ptr Int -> IO Int
 
 -- | Set the atomic to the given value.
-store :: Atomic -> Int -> IO ()
-store (C fp) n = withForeignPtr fp $ \ p -> cStore p n
+write :: Atomic -> Int -> IO ()
+write (C fp) n = withForeignPtr fp $ \ p -> cWrite p n
 
-foreign import ccall unsafe "hs_atomic_store" cStore :: Ptr Int -> Int -> IO ()
+foreign import ccall unsafe "hs_atomic_write" cWrite :: Ptr Int -> Int -> IO ()
 
 -- | Increase the atomic by one.
 inc :: Atomic -> IO ()
