@@ -36,18 +36,18 @@ statsdThreadId :: Statsd -> ThreadId
 statsdThreadId = threadId
 
 data StatsdOptions = StatsdOptions
-    { host         :: !String  -- ^ Server hostname or IP address
-    , port         :: !Int     -- ^ Server port
-    , syncInterval :: !Int     -- ^ Data push interval, in ms.
-    , debug        :: !Bool    -- ^ Print debug output to stderr.
+    { host          :: !String  -- ^ Server hostname or IP address
+    , port          :: !Int     -- ^ Server port
+    , flushInterval :: !Int     -- ^ Data push interval, in ms.
+    , debug         :: !Bool    -- ^ Print debug output to stderr.
     }
 
 defaultStatsdOptions :: StatsdOptions
 defaultStatsdOptions = StatsdOptions
-    { host         = "127.0.0.1"
-    , port         = 8125
-    , syncInterval = 10000
-    , debug        = False
+    { host          = "127.0.0.1"
+    , port          = 8125
+    , flushInterval = 10000
+    , debug         = False
     }
 
 forkStatsd :: StatsdOptions -> Metrics.Store -> IO Statsd
@@ -83,7 +83,7 @@ loop store lastSample socket opts = do
     let !diff = diffSamples lastSample sample
     flushSample diff socket opts
     end <- time
-    threadDelay (syncInterval opts * 1000 - fromIntegral (end - start))
+    threadDelay (flushInterval opts * 1000 - fromIntegral (end - start))
     loop store sample socket opts
 
 -- | Microseconds since epoch.
