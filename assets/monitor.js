@@ -160,7 +160,7 @@ $(document).ready(function () {
                                                  prev_stats, prev_time)]);
             }
 
-            // zip lengends with data
+            // zip legends with data
             var res = [];
             for(var i = 0; i < series.length; i++)
                 res.push({ label: series[i].label, data: data[i] });
@@ -195,8 +195,10 @@ $(document).ready(function () {
             return graph_fn(key, stats, time, prev_stats, prev_time);
         }
 
+        // jQuery has problem with IDs containing dots.
+        var plotId = key.replace(/\./g, "-") + "-plot";
         $("#plots:last").append(
-            '<div id="' + key + '-plot" class="plot-container">' +
+            '<div id="' + plotId + '" class="plot-container">' +
                 '<img src="cross.png" class="close-button"><h3>' + key +
                 '</h3><div class="plot"></div></div>');
         var plot = $("#plots > .plot-container:last > div");
@@ -204,7 +206,7 @@ $(document).ready(function () {
                 [{ label: label_fn(key), fn: getStats }],
                 { yaxis: { tickFormatter: suffixFormatterGeneric } });
 
-        var plotContainer = $("#" + key + "-plot");
+        var plotContainer = $("#" + plotId);
         var closeButton = plotContainer.find("img");
         closeButton.hide();
         closeButton.click(function () {
@@ -224,30 +226,84 @@ $(document).ready(function () {
     }
 
     function addMetrics(table) {
+        var COUNTER = "c";
+        var GAUGE = "g";
         var metrics = {};
+
+        function makeDataGetter(key) {
+            var pieces = key.split(".");
+            function get(key, stats, time, prev_stats, prev_time) {
+                var value = stats;
+                $.each(pieces, function(unused_index, piece) {
+                    value = value[piece];
+                });
+                if (value.type === COUNTER) {
+                    if (prev_stats == undefined)
+                        return null;
+                    var prev_value = prev_stats;
+                    $.each(pieces, function(unused_index, piece) {
+                        prev_value = prev_value[piece];
+                    });
+                    return 1000 * (value.val - prev_value.val) /
+                        (time - prev_time);
+                } else {  // value.type === GAUGE
+                    return value.val;
+                }
+            }
+            return get;
+        }
+
+        function counterLabel(label) {
+            return label + "/s";
+        }
+
+        function gaugeLabel(label) {
+            return label;
+        }
+
+        /** Adds the table row. */
+        function addElem(key, value) {
+            var elem;
+            if (key in metrics) {
+                elem = metrics[key];
+            } else {
+                // Add UI element
+                table.find("tbody:last").append(
+                    '<tr><td>' + key +
+                        ' <img src="chart_line_add.png" class="graph-button"' +
+                        ' width="16" height="16"' +
+                        ' alt="Add graph" title="Add graph"></td>' +
+                        '<td class="value">N/A</td></tr>');
+                elem = table.find("tbody > tr > td:last");
+                metrics[key] = elem;
+
+                var button = table.find("tbody > tr:last > td:first > img");
+                var graph_fn = makeDataGetter(key);
+                var label_fn = gaugeLabel;
+                if (value.type === COUNTER) {
+                    label_fn = counterLabel;
+                }
+                button.click(function () {
+                    addDynamicPlot(key, button, graph_fn, label_fn);
+                    $(this).hide();
+                });
+            }
+            if (!paused) {
+                var val = value.val;
+                if ($.inArray(value.type, [COUNTER, GAUGE]) !== -1) {
+                    val = commaify(val);
+                }
+                elem.text(val);
+            }
+        }
+
+        /** Updates UI for all metrics. */
         function onDataReceived(stats, time) {
             function build(prefix, obj) {
                 $.each(obj, function (suffix, value) {
                     if (value.hasOwnProperty("val")) {
                         var key = prefix + suffix;
-                        var elem;
-                        if (key in metrics) {
-                            elem = metrics[key];
-                        } else {
-                            // Add UI element
-                            table.find("tbody:last").append(
-                                '<tr><td>' + key + '</td>' +
-                                    '<td class="string">N/A</td></tr>');
-                            elem = table.find("tbody > tr > td:last");
-                            metrics[key] = elem;
-                        }
-                        if (!paused) {
-                            var val = value.val;
-                            if ($.inArray(value.type, ['c', 'g']) !== -1) {
-                                val = commaify(val);
-                            }
-                            elem.text(val);
-                        }
+                        addElem(key, value);
                     } else {
                         build(prefix + suffix + '.', value);
                     }
@@ -313,7 +369,7 @@ $(document).ready(function () {
                  { label: "cpu time", fn: productivity_cpu_percent }],
                 { yaxis: { tickDecimals: 1, tickFormatter: percentFormatter } });
 
-        // Counters
+        // GC and memory statistics
         addCounter($("#max-bytes-used"), max_bytes_used, formatSuffix);
         addCounter($("#current-bytes-used"), current_bytes_used, formatSuffix);
         addCounter($("#max-bytes-slop"), max_bytes_slop, formatSuffix);
