@@ -135,8 +135,8 @@ serveAll store = do
     -- requests ought to go to the 'serveOne' handler.
     unless (S.null $ rqPathInfo req) pass
     modifyResponse $ setContentType "application/json"
-    bs <- liftIO $ buildAll store
-    writeLBS bs
+    metrics <- liftIO $ sampleAll store
+    writeLBS $ encodeMetrics metrics
 
 -- | Serve all counters and gauges, built-in or not, as a flattened
 -- JSON object.

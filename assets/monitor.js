@@ -115,7 +115,7 @@ $(document).ready(function () {
             }
             alertVisible = false;
             for (var i = 0; i < listeners.length; i++) {
-                listeners[i](stats, stats.server_timestamp_millis);
+                listeners[i](stats, stats.server_timestamp_ms.val);
             }
         }
 
@@ -223,56 +223,37 @@ $(document).ready(function () {
         );
     }
 
-    function addDynamicCounters(table, group_fn, graph_fn, label_fn) {
-        var counters = {};
+    function addMetrics(table) {
+        var metrics = {};
         function onDataReceived(stats, time) {
-            $.each(group_fn(stats), function (key, value) {
-                var elem;
-                if (key in counters) {
-                    elem = counters[key];
-                } else {
-                    // Add UI element
-                    table.find("tbody:last").append(
-                        '<tr><td>' + key +
-                            ' <img src="chart_line_add.png" class="graph-button"' +
-                            ' width="16" height="16"' +
-                            ' alt="Add graph" title="Add graph"></td>' +
-                            '<td class="value">N/A</td></tr>');
-                    elem = table.find("tbody > tr > td:last");
-                    counters[key] = elem;
-
-                    var button = table.find("tbody > tr:last > td:first > img");
-                    button.click(function () {
-                        addDynamicPlot(key, button, graph_fn, label_fn);
-                        $(this).hide();
-                    });
-                }
-                if (!paused)
-                    elem.text(commaify(value));
-            });
-        }
-
-        subscribe(onDataReceived);
-    }
-
-    function addDynamicLabels(table, group_fn) {
-        var labels = {};
-        function onDataReceived(stats, time) {
-            $.each(group_fn(stats), function (key, value) {
-                var elem;
-                if (key in labels) {
-                    elem = labels[key];
-                } else {
-                    // Add UI element
-                    table.find("tbody:last").append(
-                        '<tr><td>' + key + '</td>' +
-                            '<td class="string">N/A</td></tr>');
-                    elem = table.find("tbody > tr > td:last");
-                    labels[key] = elem;
-                }
-                if (!paused)
-                    elem.text(value);
-            });
+            function build(prefix, obj) {
+                $.each(obj, function (suffix, value) {
+                    if (value.hasOwnProperty("val")) {
+                        var key = prefix + suffix;
+                        var elem;
+                        if (key in metrics) {
+                            elem = metrics[key];
+                        } else {
+                            // Add UI element
+                            table.find("tbody:last").append(
+                                '<tr><td>' + key + '</td>' +
+                                    '<td class="string">N/A</td></tr>');
+                            elem = table.find("tbody > tr > td:last");
+                            metrics[key] = elem;
+                        }
+                        if (!paused) {
+                            var val = value.val;
+                            if ($.inArray(value.type, ['c', 'g']) !== -1) {
+                                val = commaify(val);
+                            }
+                            elem.text(val);
+                        }
+                    } else {
+                        build(prefix + suffix + '.', value);
+                    }
+                });
+            }
+            build('', stats);
         }
 
         subscribe(onDataReceived);
@@ -281,42 +262,44 @@ $(document).ready(function () {
     function initAll() {
         // Metrics
         var current_bytes_used = function (stats) {
-            return stats.gauges.current_bytes_used;
+            return stats.rts.gc.current_bytes_used.val;
         };
         var max_bytes_used = function (stats) {
-            return stats.gauges.max_bytes_used;
+            return stats.rts.gc.max_bytes_used.val;
         };
         var max_bytes_slop = function (stats) {
-            return stats.gauges.max_bytes_slop;
+            return stats.rts.gc.max_bytes_slop.val;
         };
         var current_bytes_slop = function (stats) {
-            return stats.gauges.current_bytes_slop;
+            return stats.rts.gc.current_bytes_slop.val;
         };
         var productivity_wall_percent = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            var mutator_seconds = stats.counters.mutator_wall_seconds -
-                prev_stats.counters.mutator_wall_seconds;
-            var gc_seconds = stats.counters.gc_wall_seconds -
-                prev_stats.counters.gc_wall_seconds;
-            return 100 * mutator_seconds / (mutator_seconds + gc_seconds);
+            var mutator_ms = stats.rts.gc.mutator_wall_ms.val -
+                prev_stats.rts.gc.mutator_wall_ms.val;
+            var gc_ms = stats.rts.gc.gc_wall_ms.val -
+                prev_stats.rts.gc.gc_wall_ms.val;
+            return 100 * mutator_ms / (mutator_ms + gc_ms);
         };
         var productivity_cpu_percent = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            var mutator_seconds = stats.counters.mutator_cpu_seconds -
-                prev_stats.counters.mutator_cpu_seconds;
-            var gc_seconds = stats.counters.gc_cpu_seconds -
-                prev_stats.counters.gc_cpu_seconds;
-            return 100 * mutator_seconds / (mutator_seconds + gc_seconds);
+            var mutator_ms = stats.rts.gc.mutator_cpu_ms.val -
+                prev_stats.rts.gc.mutator_cpu_ms.val;
+            var gc_ms = stats.rts.gc.gc_cpu_ms.val -
+                prev_stats.rts.gc.gc_cpu_ms.val;
+            return 100 * mutator_ms / (mutator_ms + gc_ms);
         };
         var allocation_rate = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            return 1000 * (stats.counters.bytes_allocated -
-                           prev_stats.counters.bytes_allocated) /
+            return 1000 * (stats.rts.gc.bytes_allocated.val -
+                           prev_stats.rts.gc.bytes_allocated.val) /
                 (time - prev_time);
         };
+
+        addMetrics($("#metric-table"));
 
         // Plots
         addPlot($("#current-bytes-used-plot > div"),
@@ -338,29 +321,6 @@ $(document).ready(function () {
         addCounter($("#productivity-wall"), productivity_wall_percent, formatPercent);
         addCounter($("#productivity-cpu"), productivity_cpu_percent, formatPercent);
         addCounter($("#allocation-rate"), allocation_rate, formatRate);
-
-        addDynamicCounters($("#counter-table"), function (stats) {
-            return stats.counters;
-        }, function (key, stats, time, prev_stats, prev_time) {
-            if (prev_stats == undefined)
-                return null;
-            return 1000 * (stats.counters[key] - prev_stats.counters[key]) /
-                (time - prev_time);
-        }, function (label) {
-            return label + "/s";
-        });
-
-        addDynamicCounters($("#gauge-table"), function (stats) {
-            return stats.gauges;
-        }, function (key, stats, time) {
-            return stats.gauges[key];
-        }, function (label) {
-            return label;
-        });
-
-        addDynamicLabels($("#label-table"), function (stats) {
-            return stats.labels;
-        });
     }
 
     initAll();
