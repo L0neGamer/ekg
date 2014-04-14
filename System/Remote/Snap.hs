@@ -28,7 +28,7 @@ import Snap.Util.FileServe (serveDirectory)
 import System.FilePath ((</>))
 
 import System.Metrics
-import System.Remote.Common
+import System.Remote.Json
 
 ------------------------------------------------------------------------
 

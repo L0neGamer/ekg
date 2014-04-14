@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module System.Remote.Common
+module System.Remote.Json
     (
       encodeAll
     , encodeOne

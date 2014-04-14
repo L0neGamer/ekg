@@ -33,7 +33,7 @@ library
     Data.Atomic
     Paths_ekg
     System.Metrics
-    System.Remote.Common
+    System.Remote.Json
     System.Remote.Counter.Internal
     System.Remote.Gauge.Internal
     System.Remote.Label.Internal
