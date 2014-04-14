@@ -102,7 +102,7 @@ serve store = do
   where
     serveAll = do
         metrics <- liftIO $ sampleAll store
-        writeLBS $ encodeMetrics metrics
+        writeLBS $ encodeAll metrics
     serveOne pathInfo = do
         let segments  = S8.split '/' pathInfo
             nameBytes = S8.intercalate "." segments

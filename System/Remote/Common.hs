@@ -2,7 +2,7 @@
 
 module System.Remote.Common
     (
-      encodeMetrics
+      encodeAll
     , encodeOne
     ) where
 
@@ -39,8 +39,8 @@ metricType LabelType   = "l"
 -- >   }
 -- > }
 --
-encodeMetrics :: Metrics -> L.ByteString
-encodeMetrics metrics =
+encodeAll :: Metrics -> L.ByteString
+encodeAll metrics =
     A.encode $
     buildOne (metricsCounters metrics) (metricType CounterType) $
     buildOne (metricsGauges metrics) (metricType GaugeType) $
