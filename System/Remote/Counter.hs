@@ -10,9 +10,7 @@ module System.Remote.Counter
     , add
     ) where
 
-import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Ptr (Ptr)
-
+import qualified Data.Atomic as Atomic
 import System.Remote.Counter.Internal
 
 -- | Increase the counter by one.
@@ -20,7 +18,4 @@ inc :: Counter -> IO ()
 inc counter = add counter 1
 
 add :: Counter -> Int -> IO ()
-add (C fp) n = withForeignPtr fp $ \ p -> cAdd p n
-
--- | Increase the counter by the given amount.
-foreign import ccall unsafe "hs_counter_add" cAdd :: Ptr Int -> Int -> IO ()
+add counter = Atomic.add (unC counter)

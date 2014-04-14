@@ -30,6 +30,7 @@ library
     System.Remote.Monitoring
 
   other-modules:
+    Data.Atomic
     Paths_ekg
     System.Metrics
     System.Remote.Common
@@ -54,7 +55,7 @@ library
     unordered-containers < 0.3
 
   ghc-options: -Wall
-  c-sources: cbits/counter.c
+  c-sources: cbits/atomic.c
 
 benchmark benchmarks
   hs-source-dirs: benchmarks
