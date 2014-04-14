@@ -5,3 +5,6 @@
 *.tix
 .hpc/
 /dist/*
+.cabal-sandbox/
+.DS_Store
+cabal.sandbox.config
