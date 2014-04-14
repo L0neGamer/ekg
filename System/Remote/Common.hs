@@ -58,7 +58,7 @@ buildMany metrics = do
 
 -- | Serve all counter, gauges and labels, built-in or not, as a
 -- nested JSON object.
-buildAll :: MetricStore -> IO L.ByteString
+buildAll :: Store -> IO L.ByteString
 buildAll = buildCombined
 -- We're keeping this function from b/w compat but it now behaves
 -- as 'buildCombined'.
@@ -73,7 +73,7 @@ instance A.ToJSON MetricValue where
 mapSnd :: (b -> c) -> (a, b) -> (a, c)
 mapSnd f (x, y) = (x, f y)
 
-buildCombined :: MetricStore -> IO L.ByteString
+buildCombined :: Store -> IO L.ByteString
 buildCombined store = do
     metrics <- sampleCombined store
     return $ A.encode $ A.toJSON $ Assocs $ map (mapSnd (Json . MetricValue)) $

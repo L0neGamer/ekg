@@ -50,7 +50,7 @@ defaultStatsdOptions = StatsdOptions
     , debug        = False
     }
 
-forkStatsd :: StatsdOptions -> Metrics.MetricStore -> IO Statsd
+forkStatsd :: StatsdOptions -> Metrics.Store -> IO Statsd
 forkStatsd opts store = do
     addrInfos <- Socket.getAddrInfo Nothing (Just $ host opts)
                  (Just $ show $ port opts)
@@ -72,7 +72,7 @@ forkStatsd opts store = do
                                   , metricsLabels   = M.empty
                                   }
 
-loop :: Metrics.MetricStore
+loop :: Metrics.Store
      -> Metrics.Metrics  -- ^ Last sampled metrics
      -> Socket.Socket    -- ^ Connected socket
      -> StatsdOptions

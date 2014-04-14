@@ -17,7 +17,7 @@ mean xs = sum' xs / fromIntegral (length xs)
 
 main :: IO ()
 main = do
-    store <- newMetricStore
+    store <- newStore
     forkStatsd defaultStatsdOptions store
     let loop n = do
             evaluate $ mean [1..n]

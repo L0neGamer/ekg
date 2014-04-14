@@ -6,8 +6,8 @@
 module System.Metrics
     (
       -- * Types
-      MetricStore
-    , newMetricStore
+      Store
+    , newStore
 
       -- * User-defined counters, gauges, and labels
     , getCounter
@@ -47,7 +47,7 @@ import qualified System.Remote.Label.Internal as Label
 ------------------------------------------------------------------------
 -- * Types
 
-newtype MetricStore = MetricStore { metricMaps :: IORef MetricMaps }
+newtype Store = Store { metricMaps :: IORef MetricMaps }
 
 data MetricMaps = MetricMaps
     { userCounters :: !Counters
@@ -64,14 +64,14 @@ setUserGauges maps gauges = maps { userGauges = gauges }
 setUserLabels :: MetricMaps -> Labels -> MetricMaps
 setUserLabels maps labels = maps { userLabels = labels }
 
-newMetricStore :: IO MetricStore
-newMetricStore = do
+newStore :: IO Store
+newStore = do
     maps <- newIORef $ MetricMaps
         { userCounters = M.empty
         , userGauges = M.empty
         , userLabels = M.empty
         }
-    return $ MetricStore maps
+    return $ Store maps
 
 -- Map of user-defined counters.
 type Counters = M.HashMap T.Text Counter
@@ -110,7 +110,7 @@ getRef :: Ref r t
        -> (MetricMaps -> M.HashMap T.Text r -> MetricMaps)
        -- | Is this name in use by a metric of different type?
        -> (MetricMaps -> Bool)
-       -> MetricStore
+       -> Store
        -> IO r
 getRef name get set inUse store = do
     empty <- new
@@ -137,7 +137,7 @@ alreadyInUseError name =
 -- a given name and metric store, a new, zero-initialized counter will
 -- be returned.
 getCounter :: T.Text       -- ^ Counter name
-           -> MetricStore  -- ^ The metric store
+           -> Store  -- ^ The metric store
            -> IO Counter
 getCounter name store = getRef name userCounters setUserCounters
                         (\ MetricMaps{..} -> name `M.member` userGauges ||
@@ -150,7 +150,7 @@ getCounter name store = getRef name userCounters setUserCounters
 -- name and metric store, a new, zero-initialized gauge will be
 -- returned.
 getGauge :: T.Text       -- ^ Gauge name
-         -> MetricStore  -- ^ The metric store
+         -> Store  -- ^ The metric store
          -> IO Gauge
 getGauge name store = getRef name userGauges setUserGauges
                       (\ MetricMaps{..} -> name `M.member` userCounters ||
@@ -162,7 +162,7 @@ getGauge name store = getRef name userGauges setUserGauges
 -- the same label. The first time 'getLabel' is called for a given
 -- name and metric store, a new, empty label will be returned.
 getLabel :: T.Text       -- ^ Label name
-         -> MetricStore  -- ^ The metric store
+         -> Store  -- ^ The metric store
          -> IO Label
 getLabel name store = getRef name userLabels setUserLabels
                       (\ MetricMaps{..} -> name `M.member` userCounters ||
@@ -180,7 +180,7 @@ data Metrics = Metrics
     } deriving Show
 
 -- | Sample all metrics.
-sampleAll :: MetricStore -> IO Metrics
+sampleAll :: Store -> IO Metrics
 sampleAll store = do
     time <- getTimeMs
     MetricMaps{..} <- readIORef $ metricMaps store
@@ -203,7 +203,7 @@ data Metric = Counter {-# UNPACK #-} !Int
             | Gauge {-# UNPACK #-} !Int
             | Label {-# UNPACK #-} !T.Text
 
-sampleCombined :: MetricStore -> IO (M.HashMap T.Text Metric)
+sampleCombined :: Store -> IO (M.HashMap T.Text Metric)
 sampleCombined store = do
     metrics <- sampleAll store
     -- This assumes that the same name wasn't used for two different
@@ -212,26 +212,26 @@ sampleCombined store = do
                         M.map Gauge (metricsGauges metrics),
                         M.map Label (metricsLabels metrics)]
 
-sampleCounters :: MetricStore -> IO (M.HashMap T.Text Int)
+sampleCounters :: Store -> IO (M.HashMap T.Text Int)
 sampleCounters store = metricsCounters <$> sampleAll store
 
-sampleCounter :: T.Text -> MetricStore -> IO (Maybe Int)
+sampleCounter :: T.Text -> Store -> IO (Maybe Int)
 sampleCounter name store = do
     counters <- sampleCounters store
     return $! M.lookup name counters
 
-sampleGauges :: MetricStore -> IO (M.HashMap T.Text Int)
+sampleGauges :: Store -> IO (M.HashMap T.Text Int)
 sampleGauges store = metricsGauges <$> sampleAll store
 
-sampleGauge :: T.Text -> MetricStore -> IO (Maybe Int)
+sampleGauge :: T.Text -> Store -> IO (Maybe Int)
 sampleGauge name store = do
     gauges <- sampleGauges store
     return $! M.lookup name gauges
 
-sampleLabels :: MetricStore -> IO (M.HashMap T.Text T.Text)
+sampleLabels :: Store -> IO (M.HashMap T.Text T.Text)
 sampleLabels store = metricsLabels <$> sampleAll store
 
-sampleLabel :: T.Text -> MetricStore -> IO (Maybe T.Text)
+sampleLabel :: T.Text -> Store -> IO (Maybe T.Text)
 sampleLabel name store = do
     labels <- sampleLabels store
     return $! M.lookup name labels

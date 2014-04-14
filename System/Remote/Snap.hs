@@ -53,7 +53,7 @@ getNumericHostAddress host = do
     unsupportedAddressError = throwIO $
         userError $ "unsupported address: " ++ S8.unpack host
 
-startServer :: MetricStore
+startServer :: Store
             -> S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
             -> Int           -- ^ Port to listen on (e.g. 8000)
             -> IO ()
@@ -74,7 +74,7 @@ startServer store host port = do
 -- | The routes of the ekg monitor. They do not include the routes for its
 -- assets.
 monitorRoutes :: MonadSnap m
-              => MetricStore
+              => Store
               -> [(S8.ByteString, m ())]
 monitorRoutes store =
     [ ("",               jsonHandler $ serveAll store)
@@ -95,7 +95,7 @@ monitorRoutes store =
         if S.null (rqPathInfo req) then handler else pass
 
 -- | A handler that can be installed into an existing Snap application.
-monitor :: MetricStore -> Snap ()
+monitor :: Store -> Snap ()
 monitor store = do
     dataDir <- liftIO getDataDir
     route (monitorRoutes store)
@@ -127,7 +127,7 @@ serveMany sample = do
 
 -- | Serve all counter, gauges and labels, built-in or not, as a
 -- nested JSON object.
-serveAll :: MonadSnap m => MetricStore -> m ()
+serveAll :: MonadSnap m => Store -> m ()
 serveAll store = do
     req <- getRequest
     -- Workaround: Snap still matches requests to /foo to this handler
@@ -140,7 +140,7 @@ serveAll store = do
 
 -- | Serve all counters and gauges, built-in or not, as a flattened
 -- JSON object.
-serveCombined :: MonadSnap m => MetricStore -> m ()
+serveCombined :: MonadSnap m => Store -> m ()
 serveCombined store = do
     modifyResponse $ setContentType "application/json"
     bs <- liftIO $ buildCombined store

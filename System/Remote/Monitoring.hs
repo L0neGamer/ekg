@@ -217,7 +217,7 @@ forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> Int           -- ^ Port to listen on (e.g. 8000)
            -> IO Server
 forkServer host port = do
-    store <- Metrics.newMetricStore
+    store <- Metrics.newStore
     tid <- forkIO $ startServer store host port
     return $! Server tid store
 
@@ -228,7 +228,7 @@ forkServer host port = do
 -- Created by 'forkServer'.
 data Server = Server {
       threadId :: {-# UNPACK #-} !ThreadId
-    , metricStore :: {-# UNPACK #-} !Metrics.MetricStore
+    , metricStore :: {-# UNPACK #-} !Metrics.Store
     }
 
 ------------------------------------------------------------------------
