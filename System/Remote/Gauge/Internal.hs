@@ -6,15 +6,16 @@ module System.Remote.Gauge.Internal
     , read
     ) where
 
-import Data.IORef (IORef, newIORef, readIORef)
 import Prelude hiding (read)
 
+import qualified Data.Atomic as Atomic
+
 -- | A mutable, integer-valued gauge.
-newtype Gauge = C { unC :: IORef Int }
+newtype Gauge = C { unC :: Atomic.Atomic }
 
 -- | Create a new, zero initialized, gauge.
 new :: IO Gauge
-new = C `fmap` newIORef 0
+new = C `fmap` Atomic.new 0
 
 read :: Gauge -> IO Int
-read = readIORef . unC
+read = Atomic.read . unC

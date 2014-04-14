@@ -11,45 +11,29 @@ module System.Remote.Gauge
     , add
     , subtract
     , set
-    , modify
     ) where
 
-import Data.IORef (atomicModifyIORef)
 import Prelude hiding (subtract)
 
+import qualified Data.Atomic as Atomic
 import System.Remote.Gauge.Internal
 
 -- | Increase the gauge by one.
 inc :: Gauge -> IO ()
-inc (C ref) = do
-    !_ <- atomicModifyIORef ref $ \ n -> let n' = n + 1 in (n', n')
-    return ()
+inc gauge = add gauge 1
 
 -- | Decrease the gauge by one.
 dec :: Gauge -> IO ()
-dec (C ref) = do
-    !_ <- atomicModifyIORef ref $ \ n -> let n' = n - 1 in (n', n')
-    return ()
+dec gauge = subtract gauge 1
 
 -- | Increase the gauge by the given amount.
 add :: Gauge -> Int -> IO ()
-add (C ref) i = do
-    !_ <- atomicModifyIORef ref $ \ n -> let n' = n + i in (n', n')
-    return ()
+add gauge = Atomic.add (unC gauge)
 
 -- | Decrease the gauge by the given amount.
 subtract :: Gauge -> Int -> IO ()
-subtract (C ref) i = do
-    !_ <- atomicModifyIORef ref $ \ n -> let n' = n - i in (n', n')
-    return ()
+subtract gauge = Atomic.subtract (unC gauge)
 
 -- | Set the gauge to the given value.
 set :: Gauge -> Int -> IO ()
-set (C ref) !i = atomicModifyIORef ref $ \ _ -> (i, ())
-
--- | Set the gauge to the result of applying the given function to the
--- value.
-modify :: (Int -> Int) -> Gauge -> IO ()
-modify f (C ref) = do
-    !_ <- atomicModifyIORef ref $ \ i -> let i' = f i in (i', i')
-    return ()
+set gauge = Atomic.store (unC gauge)
