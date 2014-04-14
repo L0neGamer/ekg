@@ -6,17 +6,12 @@ module System.Remote.Snap
 
 import Control.Applicative ((<$>), (<|>))
 import Control.Exception (throwIO)
-import Control.Monad (join, unless)
 import Control.Monad.IO.Class (liftIO)
-import qualified Data.Aeson.Types as A
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Data.Function (on)
 import qualified Data.HashMap.Strict as M
 import qualified Data.List as List
-import qualified Data.Map as Map
-import Data.Maybe (listToMaybe)
-import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Word (Word8)
 import Network.Socket (NameInfoFlag(NI_NUMERICHOST), addrAddress, getAddrInfo,
@@ -24,9 +19,9 @@ import Network.Socket (NameInfoFlag(NI_NUMERICHOST), addrAddress, getAddrInfo,
 import Paths_ekg (getDataDir)
 import Prelude hiding (read)
 import Snap.Core (MonadSnap, Request, Snap, finishWith, getHeaders, getRequest,
-                  getResponse, method, Method(GET), modifyResponse, pass, route,
-                  rqParams, rqPathInfo, setContentType, setResponseStatus,
-                  writeBS, writeLBS)
+                  getResponse, method, Method(GET), modifyResponse, pass,
+                  rqPathInfo, setContentType, setResponseStatus,
+                  writeLBS)
 import Snap.Http.Server (httpServe)
 import qualified Snap.Http.Server.Config as Config
 import Snap.Util.FileServe (serveDirectory)
@@ -71,35 +66,15 @@ startServer store host port = do
                Config.defaultConfig
     httpServe conf (monitor store)
 
--- | The routes of the ekg monitor. They do not include the routes for its
--- assets.
-monitorRoutes :: MonadSnap m
-              => Store
-              -> [(S8.ByteString, m ())]
-monitorRoutes store =
-    [ ("",               jsonHandler $ serveAll store)
-    , ("combined",       jsonHandler $ serveCombined store)
-    , ("counters",       jsonHandler $ serveMany (sampleCounters store))
-    , ("counters/:name", textHandler $ serveOne (flip sampleCounter store))
-    , ("gauges",         jsonHandler $ serveMany (sampleGauges store))
-    , ("gauges/:name",   textHandler $ serveOne (flip sampleGauge store))
-    , ("labels",         jsonHandler $ serveMany (sampleLabels store))
-    , ("labels/:name",   textHandler $ serveOne (flip sampleLabel store))
-    ]
-  where
-    jsonHandler = wrapHandler "application/json"
-    textHandler = wrapHandler "text/plain"
-    wrapHandler fmt handler = method GET $ format fmt $ do
-        req <- getRequest
-        -- We only want to handle completely matched paths.
-        if S.null (rqPathInfo req) then handler else pass
-
 -- | A handler that can be installed into an existing Snap application.
 monitor :: Store -> Snap ()
 monitor store = do
     dataDir <- liftIO getDataDir
-    route (monitorRoutes store)
+    (jsonHandler $ serve store)
         <|> serveDirectory (dataDir </> "assets")
+  where
+    jsonHandler = wrapHandler "application/json"
+    wrapHandler fmt handler = method GET $ format fmt $ handler
 
 -- | The Accept header of the request.
 acceptHeader :: Request -> Maybe S.ByteString
@@ -115,56 +90,32 @@ format fmt action = do
         Just hdr | hdr == fmt -> action
         _ -> pass
 
--- | Serve a collection of counters or gauges, as a JSON object.
-serveMany :: (A.ToJSON t, MonadSnap m)
-          => (IO (M.HashMap T.Text t)) -> m ()
-serveMany sample = do
-    metrics <- liftIO sample
-    modifyResponse $ setContentType "application/json"
-    bs <- liftIO $ buildMany metrics
-    writeLBS bs
-{-# INLINABLE serveMany #-}
-
 -- | Serve all counter, gauges and labels, built-in or not, as a
 -- nested JSON object.
-serveAll :: MonadSnap m => Store -> m ()
-serveAll store = do
+serve :: MonadSnap m => Store -> m ()
+serve store = do
     req <- getRequest
-    -- Workaround: Snap still matches requests to /foo to this handler
-    -- if the Accept header is "application/json", even though such
-    -- requests ought to go to the 'serveOne' handler.
-    unless (S.null $ rqPathInfo req) pass
     modifyResponse $ setContentType "application/json"
-    metrics <- liftIO $ sampleAll store
-    writeLBS $ encodeMetrics metrics
-
--- | Serve all counters and gauges, built-in or not, as a flattened
--- JSON object.
-serveCombined :: MonadSnap m => Store -> m ()
-serveCombined store = do
-    modifyResponse $ setContentType "application/json"
-    bs <- liftIO $ buildCombined store
-    writeLBS bs
-
--- | Serve a single counter, as plain text.
-serveOne :: (Show t, MonadSnap m)
-         => (T.Text -> IO (Maybe t)) -> m ()
-serveOne sample = do
-    modifyResponse $ setContentType "text/plain"
-    req <- getRequest
-    let mname = T.decodeUtf8 <$> join
-                (listToMaybe <$> Map.lookup "name" (rqParams req))
-    case mname of
-        Nothing -> pass
-        Just name -> do
-            mmetric <- liftIO $ sample name
-            case mmetric of
-                Just val -> writeBS $ S8.pack $ show val
-                Nothing  -> do
-                    modifyResponse $ setResponseStatus 404 "Not Found"
-                    r <- getResponse
-                    finishWith r
-{-# INLINABLE serveOne #-}
+    if S.null (rqPathInfo req)
+        then serveAll
+        else serveOne (rqPathInfo req)
+  where
+    serveAll = do
+        metrics <- liftIO $ sampleAll store
+        writeLBS $ encodeMetrics metrics
+    serveOne pathInfo = do
+        let segments  = S8.split '/' pathInfo
+            nameBytes = S8.intercalate "." segments
+        case T.decodeUtf8' nameBytes of
+            Left _ -> do
+                modifyResponse $ setResponseStatus 400 "Bad Request"
+                r <- getResponse
+                finishWith r
+            Right name -> do
+                metrics <- liftIO $ sampleCombined store
+                case M.lookup name metrics of
+                    Nothing -> pass
+                    Just metric -> writeLBS $ encodeOne metric
 
 ------------------------------------------------------------------------
 -- Utilities for working with accept headers
