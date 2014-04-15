@@ -5,20 +5,23 @@
 {-# LANGUAGE RecordWildCards #-}
 module System.Metrics
     (
-      -- * Types
+      -- * The metric store
       Store
     , newStore
 
-      -- * User-defined counters, gauges, and labels
-    , getCounter
-    , getGauge
-    , getLabel
+      -- * Registering metrics
+      -- $registering
     , registerCounter
     , registerGauge
     , registerLabel
     , registerCallback
+      -- ** Convenience functions
+    , getCounter
+    , getGauge
+    , getLabel
 
-      -- * Sampling
+      -- * Sampling metrics
+      -- $sampling
     , Metrics
     , sampleAll
     , Metric(..)
@@ -44,8 +47,9 @@ import System.Remote.Label (Label)
 import qualified System.Remote.Label.Internal as Label
 
 ------------------------------------------------------------------------
--- * Types
+-- * The metric store
 
+-- | A mutable metric store.
 newtype Store = Store { storeState :: IORef State }
 
 data State = State
@@ -64,44 +68,45 @@ data MetricSampler = CounterS !(IO Int)
                    | GaugeS !(IO Int)
                    | LabelS !(IO T.Text)
 
+-- | Create a new, empty metric store.
 newStore :: IO Store
 newStore = do
     state <- newIORef $ State M.empty IM.empty 0
     return $ Store state
 
 ------------------------------------------------------------------------
--- * User-defined counters, gauges and labels
+-- * Registering metrics
 
--- | Register a callback that will be called any time one of the
--- metrics updated by the callback needs to be sampled.
---
--- All registered callbacks are guaranteed to be called serially, but
--- might be called from a different thread and therefore need to be
--- thread-safe.
---
--- No more than one callback can be registered per metric.
-registerCallback :: [T.Text]  -- ^ Metrics updated by this callback
-                 -> IO ()     -- ^ The ballback
-                 -> Store     -- ^ The store
-                 -> IO ()
-registerCallback names cb store = do
-    atomicModifyIORef (storeState store) $ \ State{..} ->
-        let !state' = State
-                { stateMetrics = List.foldl' (register_ stateNextId)
-                                 stateMetrics names
-                , stateCallbacks = IM.insert stateNextId cb stateCallbacks
-                , stateNextId    = stateNextId + 1
-                }
-       in (state', ())
-  where
-    register_ cbId metrics name = case M.lookup name metrics of
-        Nothing ->
-            error $ "No metric named \"" ++ T.unpack name ++ "\"."
-        Just (MetricRef _ (Just _)) ->
-            error $ "A callback has already been associated with metric \"" ++
-            T.unpack name ++ "\""
-        Just (MetricRef sampler _) ->
-            M.insert name (MetricRef sampler (Just cbId)) metrics
+-- $registering
+-- Before metrics can be sampled they need to be registered with the
+-- metric store. The same metric name must only be used once.
+
+-- | Register a non-negative, monotonically increasing integer-valued
+-- metric. The provided action to read the value must be thread-safe.
+registerCounter :: T.Text  -- ^ The metric name
+                -> IO Int  -- ^ Action to read the value
+                -> Store   -- ^ The metric store
+                -> IO ()
+registerCounter name sample store =
+    register name (CounterS sample) store
+
+-- | Register an integer-valued metric. The provided action to read
+-- the value must be thread-safe.
+registerGauge :: T.Text  -- ^ The metric name
+              -> IO Int  -- ^ Action to read the value
+              -> Store   -- ^ The metric store
+              -> IO ()
+registerGauge name sample store =
+    register name (GaugeS sample) store
+
+-- | Register a text metric. The provided action to read the value
+-- must be thread-safe.
+registerLabel :: T.Text     -- ^ The metric name
+              -> IO T.Text  -- ^ Action to read the value
+              -> Store      -- ^ The metric store
+              -> IO ()
+registerLabel name sample store =
+    register name (LabelS sample) store
 
 register :: T.Text
          -> MetricSampler
@@ -123,50 +128,73 @@ alreadyInUseError name =
     error $ "The name \"" ++ show name ++ "\" is already taken " ++
     "by a metric."
 
-registerCounter :: T.Text -> IO Int -> Store -> IO ()
-registerCounter name sample store =
-    register name (CounterS sample) store
+-- | Register a callback that will be called any time one of the
+-- metrics updated by the callback needs to be sampled.
+--
+-- Registered callbacks might be called from a different thread and
+-- therefore need to be thread-safe. No more than one callback can be
+-- registered per metric.
+--
+-- Callbacks allow you to sample groups of metrics together. This is
+-- useful if you need a consistent view of several metric or because
+-- sampling the metrics together is more efficient. For example,
+-- sampling GC statistics needs to be done atomically or a GC might
+-- strike in the middle of sampling, rendering the values incoherent.
+-- Sampling GC statistics is also more efficient if done in one step,
+-- as the run-time system provides a function to sample all GC
+-- statistics at once.
+--
+-- Example usage:
+--
+-- > main = do
+-- >     store <- newStore
+-- >     temp <- newIORef 0
+-- >     registerGauge "cpu_temp" (readIORef temp) store
+-- >     registerCallback ["cpu_temp"] (getCpuTemp >>= writeIORef temp) store
+registerCallback :: [T.Text]  -- ^ Names of metrics updated by this callback
+                 -> IO ()     -- ^ The callback
+                 -> Store     -- ^ The metric store
+                 -> IO ()
+registerCallback names cb store = do
+    atomicModifyIORef (storeState store) $ \ State{..} ->
+        let !state' = State
+                { stateMetrics = List.foldl' (register_ stateNextId)
+                                 stateMetrics names
+                , stateCallbacks = IM.insert stateNextId cb stateCallbacks
+                , stateNextId    = stateNextId + 1
+                }
+       in (state', ())
+  where
+    register_ cbId metrics name = case M.lookup name metrics of
+        Nothing ->
+            error $ "No metric named \"" ++ T.unpack name ++ "\"."
+        Just (MetricRef _ (Just _)) ->
+            error $ "A callback has already been associated with metric \"" ++
+            T.unpack name ++ "\""
+        Just (MetricRef sampler _) ->
+            M.insert name (MetricRef sampler (Just cbId)) metrics
 
-registerGauge :: T.Text -> IO Int -> Store -> IO ()
-registerGauge name sample store =
-    register name (GaugeS sample) store
-
-registerLabel :: T.Text -> IO T.Text -> Store -> IO ()
-registerLabel name sample store =
-    register name (LabelS sample) store
-
--- | Return the counter associated with the given name and metric
--- store. Multiple calls to 'getCounter' with the same arguments will
--- return the same counter. The first time 'getCounter' is called for
--- a given name and metric store, a new, zero-initialized counter will
--- be returned.
-getCounter :: T.Text       -- ^ Counter name
-           -> Store  -- ^ The metric store
+-- | Create and register a zero-initialized counter.
+getCounter :: T.Text  -- ^ Counter name
+           -> Store   -- ^ The metric store
            -> IO Counter
 getCounter name store = do
     counter <- Counter.new
     registerCounter name (Counter.read counter) store
     return counter
 
--- | Return the gauge associated with the given name and metric store.
--- Multiple calls to 'getGauge' with the same arguments will return
--- the same gauge. The first time 'getGauge' is called for a given
--- name and metric store, a new, zero-initialized gauge will be
--- returned.
-getGauge :: T.Text       -- ^ Gauge name
-         -> Store  -- ^ The metric store
+-- | Create and register a zero-initialized gauge.
+getGauge :: T.Text  -- ^ Gauge name
+         -> Store   -- ^ The metric store
          -> IO Gauge
 getGauge name store = do
     gauge <- Gauge.new
     registerGauge name (Gauge.read gauge) store
     return gauge
 
--- | Return the label associated with the given name and metric store.
--- Multiple calls to 'getLabel' with the same arguments will return
--- the same label. The first time 'getLabel' is called for a given
--- name and metric store, a new, empty label will be returned.
-getLabel :: T.Text       -- ^ Label name
-         -> Store  -- ^ The metric store
+-- | Create and register an empty label.
+getLabel :: T.Text  -- ^ Label name
+         -> Store   -- ^ The metric store
          -> IO Label
 getLabel name store = do
     label <- Label.new
@@ -174,7 +202,17 @@ getLabel name store = do
     return label
 
 ------------------------------------------------------------------------
--- * Sampling
+-- * Sampling metrics
+
+-- $sampling
+-- The metrics register in the store can be sampled together. Sampling
+-- is /not/ atomic. While each metric will be retrieved atomically,
+-- the sample is not an atomic snapshot of the system as a whole. See
+-- 'registerCallback' for an idea how to sample a subset of all
+-- metrics atomically.
+--
+-- Before any sampling is done, any callbacks that cover the metrics
+-- being sampled are run.
 
 -- | A sample of some metrics.
 type Metrics = M.HashMap T.Text Metric
@@ -196,7 +234,7 @@ sampleAll store = do
     getTimeMs :: IO Int
     getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
 
--- | The kind of metrics that can be tracked.
+-- | The kind of metrics that can be sampled.
 data Metric = Counter {-# UNPACK #-} !Int
             | Gauge {-# UNPACK #-} !Int
             | Label {-# UNPACK #-} !T.Text
