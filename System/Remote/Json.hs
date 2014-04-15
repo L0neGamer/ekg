@@ -58,7 +58,7 @@ encodeAll metrics =
     go ty (A.Object m) (str:rest) val = case M.lookup str m of
         Nothing -> A.Object $ M.insert str (go ty A.emptyObject rest val) m
         Just m' -> A.Object $ M.insert str (go ty m' rest val) m
-    go _ v _ _                       = typeMismatch "Object" v
+    go _ v _ _                        = typeMismatch "Object" v
 
     {-# SPECIALIZE buildOne :: M.HashMap T.Text Int -> T.Text -> A.Value
                             -> A.Value #-}

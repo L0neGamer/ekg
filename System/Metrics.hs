@@ -13,6 +13,9 @@ module System.Metrics
     , getCounter
     , getGauge
     , getLabel
+    , registerCounter
+    , registerGauge
+    , registerLabel
 
       -- * Sampling
     , Metrics(..)
@@ -73,63 +76,55 @@ newStore = do
         }
     return $ Store maps
 
--- Map of user-defined counters.
-type Counters = M.HashMap T.Text Counter
+-- Map of counters.
+type Counters = M.HashMap T.Text (IO Int)
 
--- Map of user-defined gauges.
-type Gauges = M.HashMap T.Text Gauge
+-- Map of gauges.
+type Gauges = M.HashMap T.Text (IO Int)
 
--- Map of user-defined labels.
-type Labels = M.HashMap T.Text Label
+-- Map of labels.
+type Labels = M.HashMap T.Text (IO T.Text)
 
 ------------------------------------------------------------------------
 -- * User-defined counters, gauges and labels
 
-class Ref r t | r -> t where
-    new :: IO r
-    read :: r -> IO t
-
-instance Ref Counter Int where
-    new = Counter.new
-    read = Counter.read
-
-instance Ref Gauge Int where
-    new = Gauge.new
-    read = Gauge.read
-
-instance Ref Label T.Text where
-    new = Label.new
-    read = Label.read
-
--- | Lookup a 'Ref' by name in the given map.  If no 'Ref' exists
--- under the given name, create a new one, insert it into the map and
--- return it.
-getRef :: Ref r t
-       => T.Text
-       -> (MetricMaps -> M.HashMap T.Text r)
-       -> (MetricMaps -> M.HashMap T.Text r -> MetricMaps)
-       -> (MetricMaps -> Bool) -- ^ Is this name in use by a metric of
-                               -- different type?
-       -> Store
-       -> IO r
-getRef name get set inUse store = do
-    empty <- new
-    ref <- atomicModifyIORef (metricMaps store) $ \ maps ->
-        if inUse maps
-        then alreadyInUseError name
-        else let !m = get maps
-             in case M.lookup name m of
-                 Nothing  -> let !m'    = M.insert name empty m
-                                 !maps' = set maps m'
-                             in (maps', empty)
-                 Just ref -> (maps, ref)
-    return ref
-{-# INLINABLE getRef #-}
+register :: T.Text
+         -> IO r
+         -> (MetricMaps -> M.HashMap T.Text (IO r))
+         -> (MetricMaps -> M.HashMap T.Text (IO r) -> MetricMaps)
+         -> Store
+         -> IO ()
+register name sample get set store = do
+    atomicModifyIORef (metricMaps store) $ \ maps ->
+        if inUse name maps
+        then alreadyInUseError name maps
+        else -- Guaranteed to not be in map at this point.
+             let !m = get maps
+             in let !m'    = M.insert name sample m
+                    !maps' = set maps m'
+                in (maps', ())
 
 alreadyInUseError :: T.Text -> a
 alreadyInUseError name =
     error $ "The name \"" ++ show name ++ "\" is already taken " ++
-    "by a metric of different type."
+    "by a metric."
+
+inUse :: T.Text -> MetricMaps -> Bool
+inUse name MetricMaps{..} = name `M.member` userCounters ||
+                            name `M.member` userGauges ||
+                            name `M.member` userLabels
+
+registerCounter :: T.Text -> IO Int -> Store -> IO ()
+registerCounter name sample store =
+    register name sample userCounters setUserCounters store
+
+registerGauge :: T.Text -> IO Int -> Store -> IO ()
+registerGauge name sample store =
+    register name sample userGauges setUserGauges store
+
+registerLabel :: T.Text -> IO T.Text -> Store -> IO ()
+registerLabel name sample store =
+    register name sample userLabels setUserLabels store
 
 -- | Return the counter associated with the given name and metric
 -- store. Multiple calls to 'getCounter' with the same arguments will
@@ -139,10 +134,10 @@ alreadyInUseError name =
 getCounter :: T.Text       -- ^ Counter name
            -> Store  -- ^ The metric store
            -> IO Counter
-getCounter name store = getRef name userCounters setUserCounters
-                        (\ MetricMaps{..} -> name `M.member` userGauges ||
-                                             name `M.member` userLabels)
-                        store
+getCounter name store = do
+    counter <- Counter.new
+    registerCounter name (Counter.read counter) store
+    return counter
 
 -- | Return the gauge associated with the given name and metric store.
 -- Multiple calls to 'getGauge' with the same arguments will return
@@ -152,10 +147,10 @@ getCounter name store = getRef name userCounters setUserCounters
 getGauge :: T.Text       -- ^ Gauge name
          -> Store  -- ^ The metric store
          -> IO Gauge
-getGauge name store = getRef name userGauges setUserGauges
-                      (\ MetricMaps{..} -> name `M.member` userCounters ||
-                                           name `M.member` userLabels)
-                      store
+getGauge name store = do
+    gauge <- Gauge.new
+    registerGauge name (Gauge.read gauge) store
+    return gauge
 
 -- | Return the label associated with the given name and metric store.
 -- Multiple calls to 'getLabel' with the same arguments will return
@@ -164,10 +159,10 @@ getGauge name store = getRef name userGauges setUserGauges
 getLabel :: T.Text       -- ^ Label name
          -> Store  -- ^ The metric store
          -> IO Label
-getLabel name store = getRef name userLabels setUserLabels
-                      (\ MetricMaps{..} -> name `M.member` userCounters ||
-                                           name `M.member` userGauges)
-                      store
+getLabel name store = do
+    label <- Label.new
+    registerLabel name (Label.read label) store
+    return label
 
 ------------------------------------------------------------------------
 -- * Sampling
@@ -238,10 +233,10 @@ sampleLabel name store = do
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: Ref r t => M.HashMap T.Text r -> IO [(T.Text, t)]
+readAllRefs :: M.HashMap T.Text (IO t) -> IO [(T.Text, t)]
 readAllRefs m = do
-    forM (M.toList m) $ \ (name, ref) -> do
-        val <- read ref
+    forM (M.toList m) $ \ (name, sample) -> do
+        val <- sample
         return (name, val)
 {-# INLINABLE readAllRefs #-}
 
