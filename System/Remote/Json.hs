@@ -74,6 +74,7 @@ encodeOne (Counter n) = encodeMetric n CounterType
 encodeOne (Gauge n)   = encodeMetric n GaugeType
 encodeOne (Label n)   = encodeMetric n LabelType
 
+encodeMetric :: A.ToJSON a => a -> MetricType -> L.ByteString
 encodeMetric val ty = A.encode $ A.object [
     ("val", A.toJSON val), ("type", A.toJSON (metricType ty))]
 
