@@ -24,6 +24,7 @@ cabal-version:       >= 1.8
 
 library
   exposed-modules:
+    System.Metrics
     System.Remote.Counter
     System.Remote.Gauge
     System.Remote.Label
@@ -32,7 +33,6 @@ library
   other-modules:
     Data.Atomic
     Paths_ekg
-    System.Metrics
     System.Remote.Json
     System.Remote.Counter.Internal
     System.Remote.Gauge.Internal

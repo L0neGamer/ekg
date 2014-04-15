@@ -72,7 +72,18 @@ newStore = do
 ------------------------------------------------------------------------
 -- * User-defined counters, gauges and labels
 
-registerCallback :: [T.Text] -> IO () -> Store -> IO ()
+-- | Register a callback that will be called any time one of the
+-- metrics updated by the callback needs to be sampled.
+--
+-- All registered callbacks are guaranteed to be called serially, but
+-- might be called from a different thread and therefore need to be
+-- thread-safe.
+--
+-- No more than one callback can be registered per metric.
+registerCallback :: [T.Text]  -- ^ Metrics updated by this callback
+                 -> IO ()     -- ^ The ballback
+                 -> Store     -- ^ The store
+                 -> IO ()
 registerCallback names cb store = do
     atomicModifyIORef (storeState store) $ \ State{..} ->
         let !state' = State
