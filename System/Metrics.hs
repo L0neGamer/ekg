@@ -108,8 +108,8 @@ getRef :: Ref r t
        => T.Text
        -> (MetricMaps -> M.HashMap T.Text r)
        -> (MetricMaps -> M.HashMap T.Text r -> MetricMaps)
-       -- | Is this name in use by a metric of different type?
-       -> (MetricMaps -> Bool)
+       -> (MetricMaps -> Bool) -- ^ Is this name in use by a metric of
+                               -- different type?
        -> Store
        -> IO r
 getRef name get set inUse store = do
