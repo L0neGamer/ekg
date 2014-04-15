@@ -72,94 +72,112 @@ import System.Remote.Snap
 
 -- $api
 -- To use the machine-readable REST API, send an HTTP GET request to
--- the host and port passed to 'forkServer'.  The following resources
--- (i.e. URLs) are available:
+-- the host and port passed to 'forkServer'.
+--
+-- The API is versioned to allow for API evolution. This document is
+-- for version 1. To ensure you're using this version, append @?v=1@
+-- to your resource URLs. Omitting the version number will give you
+-- the latest version of the API.
+--
+-- The following resources (i.e. URLs) are available:
 --
 -- [\/] JSON object containing all counters, gauges and labels.
 -- Counters, gauges, and labels are stored as nested objects under the
 -- @counters@, @gauges@, and @labels@ attributes, respectively.
 -- Content types: \"text\/html\" (default), \"application\/json\"
 --
--- [\/combined] Flattened JSON object containing all counters, gauges,
--- and labels.  Content types: \"application\/json\"
+-- [\/\<namespace\>/\<metric\>] JSON object for a single metric. The
+-- metric name is created by converting all \/ to \".\". Example:
+-- \"\/foo\/bar\" corresponds to the metric \"foo.bar\". Content
+-- types: \"application\/json\"
 --
--- [\/counters] JSON object containing all counters.  Content types:
--- \"application\/json\"
+-- Each metric is returned as an object containing a @val@ and a
+-- @type@ type. The @val@ field contains the actual value (i.e. an
+-- integer or a string) and the @type@ field specifies the metric
+-- type. Available types are:
 --
--- [\/counters/\<counter name\>] Value of a single counter, as a
--- string.  The name should be UTF-8 encoded.  Content types:
--- \"text\/plain\"
+--  * \"c\" - 'System.Counter'
 --
--- [\/gauges] JSON object containing all gauges.  Content types:
--- \"application\/json\"
+--  * \"g\" - 'System.Gauge'
 --
--- [\/gauges/\<gauge name\>] Value of a single gauge, as a string.
--- The name should be UTF-8 encoded.  Content types: \"text\/plain\"
+--  * \"l\" - 'System.Label'
 --
--- [\/labels] JSON object containing all labels.  Content types:
--- \"application\/json\"
+-- Example of a response containing the metrics \"myapp.visitors\" and
+-- \"myapp.args\":
 --
--- [\/labels/\<label name\>] Value of a single label, as a string.
--- The name should be UTF-8 encoded.  Content types: \"text\/plain\"
+-- > {
+-- >   "myapp": {
+-- >     "visitors": {
+-- >       "val": 10,
+-- >       "type": "c"
+-- >     },
+-- >     "args": {
+-- >       "val": "--a-flag",
+-- >       "type": "l"
+-- >     }
+-- >   }
+-- > }
 --
--- Counters, gauges and labels are stored as attributes of the
--- returned JSON objects, one attribute per counter, gauge or label.
 -- In addition to user-defined counters, gauges, and labels, the below
--- built-in counters and gauges are also returned.  Furthermore, the
--- top-level JSON object of any resource contains the
--- @server_timestamp_millis@ attribute, which indicates the server
--- time, in milliseconds, when the sample was taken.
+-- built-in counters and gauges are also returned.
 --
 -- Built-in counters:
 --
--- [@bytes_allocated@] Total number of bytes allocated
+-- [@server_time_ms@] The server time when the sample was taken, in
+-- milliseconds.
 --
--- [@num_gcs@] Number of garbage collections performed
+-- [@rts.gc.bytes_allocated@] Total number of bytes allocated
 --
--- [@num_bytes_usage_samples@] Number of byte usage samples taken
+-- [@rts.gc.num_gcs@] Number of garbage collections performed
 --
--- [@cumulative_bytes_used@] Sum of all byte usage samples, can be
+-- [@rts.gc.num_bytes_usage_samples@] Number of byte usage samples taken
+--
+-- [@rts.gc.cumulative_bytes_used@] Sum of all byte usage samples, can be
 -- used with @numByteUsageSamples@ to calculate averages with
 -- arbitrary weighting (if you are sampling this record multiple
 -- times).
 --
--- [@bytes_copied@] Number of bytes copied during GC
+-- [@rts.gc.bytes_copied@] Number of bytes copied during GC
 --
--- [@mutator_cpu_seconds@] CPU time spent running mutator threads.
--- This does not include any profiling overhead or initialization.
+-- [@rts.gc.mutator_cpu_ms@] CPU time spent running mutator threads,
+-- in milliseconds. This does not include any profiling overhead or
+-- initialization.
 --
--- [@mutator_wall_seconds@] Wall clock time spent running mutator
--- threads.  This does not include initialization.
+-- [@rts.gc.mutator_wall_ms@] Wall clock time spent running mutator
+-- threads, in milliseconds. This does not include initialization.
 --
--- [@gc_cpu_seconds@] CPU time spent running GC
+-- [@rts.gc.gc_cpu_ms@] CPU time spent running GC, in milliseconds.
 --
--- [@gc_wall_seconds@] Wall clock time spent running GC
+-- [@rts.gc.gc_wall_ms@] Wall clock time spent running GC, in
+-- milliseconds.
 --
--- [@cpu_seconds@] Total CPU time elapsed since program start
+-- [@rts.gc.cpu_ms@] Total CPU time elapsed since program start, in
+-- milliseconds.
 --
--- [@wall_seconds@] Total wall clock time elapsed since start
+-- [@rts.gc.wall_ms@] Total wall clock time elapsed since start, in
+-- milliseconds.
 --
 -- Built-in gauges:
 --
--- [@max_bytes_used@] Maximum number of live bytes seen so far
+-- [@rts.gc.max_bytes_used@] Maximum number of live bytes seen so far
 --
--- [@current_bytes_used@] Current number of live bytes
+-- [@rts.gc.current_bytes_used@] Current number of live bytes
 --
--- [@current_bytes_slop@] Current number of bytes lost to slop
+-- [@rts.gc.current_bytes_slop@] Current number of bytes lost to slop
 --
--- [@max_bytes_slop@] Maximum number of bytes lost to slop at any one time so far
+-- [@rts.gc.max_bytes_slop@] Maximum number of bytes lost to slop at any one time so far
 --
--- [@peak_megabytes_allocated@] Maximum number of megabytes allocated
+-- [@rts.gc.peak_megabytes_allocated@] Maximum number of megabytes allocated
 --
--- [@par_tot_bytes_copied@] Number of bytes copied during GC, minus
+-- [@rts.gc.par_tot_bytes_copied@] Number of bytes copied during GC, minus
 -- space held by mutable lists held by the capabilities.  Can be used
 -- with 'parMaxBytesCopied' to determine how well parallel GC utilized
 -- all cores.
 --
--- [@par_avg_bytes_copied@] Deprecated alias for
+-- [@rts.gc.par_avg_bytes_copied@] Deprecated alias for
 -- @par_tot_bytes_copied@.
 --
--- [@par_max_bytes_copied@] Sum of number of bytes copied each GC by
+-- [@rts.gc.par_max_bytes_copied@] Sum of number of bytes copied each GC by
 -- the most active GC thread each GC. The ratio of
 -- @par_tot_bytes_copied@ divided by @par_max_bytes_copied@ approaches
 -- 1 for a maximally sequential run and approaches the number of
