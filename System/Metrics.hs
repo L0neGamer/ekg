@@ -128,6 +128,10 @@ alreadyInUseError name =
     error $ "The name \"" ++ show name ++ "\" is already taken " ++
     "by a metric."
 
+-- TODO: We might want to have the callback return the values sampled.
+-- That way we don't need to allocate and maintain 'IORef's for all
+-- metrics sampled through a callback (e.g. GC metrics).
+
 -- | Register a callback that will be called any time one of the
 -- metrics updated by the callback needs to be sampled.
 --
