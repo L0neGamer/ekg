@@ -41,33 +41,30 @@ metricType LabelType   = "l"
 --
 encodeAll :: Metrics -> L.ByteString
 encodeAll metrics =
-    A.encode $
-    buildOne (metricsCounters metrics) (metricType CounterType) $
-    buildOne (metricsGauges metrics) (metricType GaugeType) $
-    buildOne (metricsLabels metrics) (metricType LabelType) $ A.emptyObject
+    A.encode $ buildOne metrics $ A.emptyObject
   where
-    buildOne :: A.ToJSON a => M.HashMap T.Text a -> T.Text -> A.Value -> A.Value
-    buildOne m ty o = M.foldlWithKey' (build ty) o m
+    buildOne :: M.HashMap T.Text Metric -> A.Value -> A.Value
+    buildOne m o = M.foldlWithKey' build o m
 
-    build :: A.ToJSON a => T.Text -> A.Value -> T.Text -> a -> A.Value
-    build ty m name val = go ty m (T.splitOn "." name) val
+    build :: A.Value -> T.Text -> Metric -> A.Value
+    build m name val = go m (T.splitOn "." name) val
 
-    go :: A.ToJSON a => T.Text -> A.Value -> [T.Text] -> a -> A.Value
-    go ty (A.Object m) [str] val      = A.Object $ M.insert str metric m
-      where metric = A.object [("val", A.toJSON val), ("type", A.toJSON ty)]
-    go ty (A.Object m) (str:rest) val = case M.lookup str m of
-        Nothing -> A.Object $ M.insert str (go ty A.emptyObject rest val) m
-        Just m' -> A.Object $ M.insert str (go ty m' rest val) m
-    go _ v _ _                        = typeMismatch "Object" v
+    go :: A.Value -> [T.Text] -> Metric -> A.Value
+    go (A.Object m) [str] val      = A.Object $ M.insert str metric m
+      where metric = buildOneM val
+    go (A.Object m) (str:rest) val = case M.lookup str m of
+        Nothing -> A.Object $ M.insert str (go A.emptyObject rest val) m
+        Just m' -> A.Object $ M.insert str (go m' rest val) m
+    go v _ _                        = typeMismatch "Object" v
 
-    {-# SPECIALIZE buildOne :: M.HashMap T.Text Int -> T.Text -> A.Value
-                            -> A.Value #-}
-    {-# SPECIALIZE buildOne :: M.HashMap T.Text T.Text -> T.Text -> A.Value
-                            -> A.Value #-}
-    {-# SPECIALIZE build :: T.Text -> A.Value -> T.Text -> Int -> A.Value #-}
-    {-# SPECIALIZE build :: T.Text -> A.Value -> T.Text -> T.Text -> A.Value #-}
-    {-# SPECIALIZE go :: T.Text -> A.Value -> [T.Text] -> Int -> A.Value #-}
-    {-# SPECIALIZE go :: T.Text -> A.Value -> [T.Text] -> T.Text -> A.Value #-}
+buildOneM :: Metric -> A.Value
+buildOneM (Counter n) = goOne n CounterType
+buildOneM (Gauge n)   = goOne n GaugeType
+buildOneM (Label l)   = goOne l LabelType
+
+goOne :: A.ToJSON a => a -> MetricType -> A.Value
+goOne val ty = A.object [
+    ("val", A.toJSON val), ("type", A.toJSON (metricType ty))]
 
 encodeOne :: Metric -> L.ByteString
 encodeOne (Counter n) = encodeMetric n CounterType

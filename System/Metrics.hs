@@ -18,16 +18,9 @@ module System.Metrics
     , registerLabel
 
       -- * Sampling
-    , Metrics(..)
+    , Metrics
     , sampleAll
     , Metric(..)
-    , sampleCombined
-    , sampleCounters
-    , sampleCounter
-    , sampleGauges
-    , sampleGauge
-    , sampleLabels
-    , sampleLabel
     ) where
 
 import Control.Applicative ((<$>))
@@ -50,81 +43,48 @@ import qualified System.Remote.Label.Internal as Label
 ------------------------------------------------------------------------
 -- * Types
 
-newtype Store = Store { metricMaps :: IORef MetricMaps }
+newtype Store = Store { metricMaps :: IORef (M.HashMap T.Text MetricSampler) }
 
-data MetricMaps = MetricMaps
-    { userCounters :: !Counters
-    , userGauges   :: !Gauges
-    , userLabels   :: !Labels
-    }
-
-setUserCounters :: MetricMaps -> Counters -> MetricMaps
-setUserCounters maps counters = maps { userCounters = counters }
-
-setUserGauges :: MetricMaps -> Gauges -> MetricMaps
-setUserGauges maps gauges = maps { userGauges = gauges }
-
-setUserLabels :: MetricMaps -> Labels -> MetricMaps
-setUserLabels maps labels = maps { userLabels = labels }
+-- TODO: Rename this to Metric and Metric to SampledMetric.
+data MetricSampler = CounterS !(IO Int)
+                   | GaugeS !(IO Int)
+                   | LabelS !(IO T.Text)
 
 newStore :: IO Store
 newStore = do
-    maps <- newIORef $ MetricMaps
-        { userCounters = M.empty
-        , userGauges = M.empty
-        , userLabels = M.empty
-        }
+    maps <- newIORef $ M.empty
     return $ Store maps
-
--- Map of counters.
-type Counters = M.HashMap T.Text (IO Int)
-
--- Map of gauges.
-type Gauges = M.HashMap T.Text (IO Int)
-
--- Map of labels.
-type Labels = M.HashMap T.Text (IO T.Text)
 
 ------------------------------------------------------------------------
 -- * User-defined counters, gauges and labels
 
 register :: T.Text
-         -> IO r
-         -> (MetricMaps -> M.HashMap T.Text (IO r))
-         -> (MetricMaps -> M.HashMap T.Text (IO r) -> MetricMaps)
+         -> MetricSampler
          -> Store
          -> IO ()
-register name sample get set store = do
-    atomicModifyIORef (metricMaps store) $ \ maps ->
-        if inUse name maps
-        then alreadyInUseError name maps
-        else -- Guaranteed to not be in map at this point.
-             let !m = get maps
-             in let !m'    = M.insert name sample m
-                    !maps' = set maps m'
-                in (maps', ())
+register name sample store = do
+    atomicModifyIORef (metricMaps store) $ \ m ->
+        case M.member name m of
+            False -> let !m' = M.insert name sample m
+                     in (m', ())
+            True  -> alreadyInUseError name
 
 alreadyInUseError :: T.Text -> a
 alreadyInUseError name =
     error $ "The name \"" ++ show name ++ "\" is already taken " ++
     "by a metric."
 
-inUse :: T.Text -> MetricMaps -> Bool
-inUse name MetricMaps{..} = name `M.member` userCounters ||
-                            name `M.member` userGauges ||
-                            name `M.member` userLabels
-
 registerCounter :: T.Text -> IO Int -> Store -> IO ()
 registerCounter name sample store =
-    register name sample userCounters setUserCounters store
+    register name (CounterS sample) store
 
 registerGauge :: T.Text -> IO Int -> Store -> IO ()
 registerGauge name sample store =
-    register name sample userGauges setUserGauges store
+    register name (GaugeS sample) store
 
 registerLabel :: T.Text -> IO T.Text -> Store -> IO ()
 registerLabel name sample store =
-    register name sample userLabels setUserLabels store
+    register name (LabelS sample) store
 
 -- | Return the counter associated with the given name and metric
 -- store. Multiple calls to 'getCounter' with the same arguments will
@@ -168,27 +128,18 @@ getLabel name store = do
 -- * Sampling
 
 -- | A sample of some metrics.
-data Metrics = Metrics
-    { metricsCounters :: !(M.HashMap T.Text Int)
-    , metricsGauges   :: !(M.HashMap T.Text Int)
-    , metricsLabels   :: !(M.HashMap T.Text T.Text)
-    } deriving Show
+type Metrics = M.HashMap T.Text Metric
 
 -- | Sample all metrics.
 sampleAll :: Store -> IO Metrics
 sampleAll store = do
     time <- getTimeMs
-    MetricMaps{..} <- readIORef $ metricMaps store
-    counters <- readAllRefs userCounters
-    gauges <- readAllRefs userGauges
-    labels <- readAllRefs userLabels
-    (gcCounters, gcGauges) <- partitionGcStats <$> getGcStats
-    let allCounters = counters ++ gcCounters ++ [("server_timestamp_ms", time)]
-        allGauges   = gauges ++ gcGauges
-    return $! Metrics
-        (M.fromList allCounters)
-        (M.fromList allGauges)
-        (M.fromList labels)
+    metrics <- readIORef $ metricMaps store
+    sample <- readAllRefs metrics
+    gcSample <- sampleGcStats <$> getGcStats
+    let allSamples = sample ++ gcSample ++
+                     [("server_timestamp_ms", Counter time)]
+    return $! M.fromList allSamples
   where
     getTimeMs :: IO Int
     getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
@@ -197,46 +148,19 @@ sampleAll store = do
 data Metric = Counter {-# UNPACK #-} !Int
             | Gauge {-# UNPACK #-} !Int
             | Label {-# UNPACK #-} !T.Text
+            deriving (Eq, Show)
 
-sampleCombined :: Store -> IO (M.HashMap T.Text Metric)
-sampleCombined store = do
-    metrics <- sampleAll store
-    -- This assumes that the same name wasn't used for two different
-    -- metric types.
-    return $! M.unions [M.map Counter (metricsCounters metrics),
-                        M.map Gauge (metricsGauges metrics),
-                        M.map Label (metricsLabels metrics)]
-
-sampleCounters :: Store -> IO (M.HashMap T.Text Int)
-sampleCounters store = metricsCounters <$> sampleAll store
-
-sampleCounter :: T.Text -> Store -> IO (Maybe Int)
-sampleCounter name store = do
-    counters <- sampleCounters store
-    return $! M.lookup name counters
-
-sampleGauges :: Store -> IO (M.HashMap T.Text Int)
-sampleGauges store = metricsGauges <$> sampleAll store
-
-sampleGauge :: T.Text -> Store -> IO (Maybe Int)
-sampleGauge name store = do
-    gauges <- sampleGauges store
-    return $! M.lookup name gauges
-
-sampleLabels :: Store -> IO (M.HashMap T.Text T.Text)
-sampleLabels store = metricsLabels <$> sampleAll store
-
-sampleLabel :: T.Text -> Store -> IO (Maybe T.Text)
-sampleLabel name store = do
-    labels <- sampleLabels store
-    return $! M.lookup name labels
+sampleOne :: MetricSampler -> IO Metric
+sampleOne (CounterS m) = Counter <$> m
+sampleOne (GaugeS m)   = Gauge <$> m
+sampleOne (LabelS m)   = Label <$> m
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: M.HashMap T.Text (IO t) -> IO [(T.Text, t)]
+readAllRefs :: M.HashMap T.Text MetricSampler -> IO [(T.Text, Metric)]
 readAllRefs m = do
-    forM (M.toList m) $ \ (name, sample) -> do
-        val <- sample
+    forM (M.toList m) $ \ (name, sampler) -> do
+        val <- sampleOne sampler
         return (name, val)
 {-# INLINABLE readAllRefs #-}
 
@@ -247,33 +171,30 @@ readAllRefs m = do
 toMs :: Double -> Int
 toMs s = round (s * 1000.0)
 
--- | Partition GC statistics into counters and gauges.
-partitionGcStats :: Stats.GCStats -> ([(T.Text, Int)], [(T.Text, Int)])
-partitionGcStats s@(Stats.GCStats {..}) = (counters, gauges)
+-- | Sample GC statistics into counters and gauges.
+sampleGcStats :: Stats.GCStats -> [(T.Text, Metric)]
+sampleGcStats s@(Stats.GCStats {..}) =
+    [ ("rts.gc.bytes_allocated"          , Counter $ int bytesAllocated)
+    , ("rts.gc.num_gcs"                  , Counter $ int numGcs)
+    , ("rts.gc.num_bytes_usage_samples"  , Counter $ int numByteUsageSamples)
+    , ("rts.gc.cumulative_bytes_used"    , Counter $ int cumulativeBytesUsed)
+    , ("rts.gc.bytes_copied"             , Counter $ int bytesCopied)
+    , ("rts.gc.mutator_cpu_ms"           , Counter $ toMs mutatorCpuSeconds)
+    , ("rts.gc.mutator_wall_ms"          , Counter $ toMs mutatorWallSeconds)
+    , ("rts.gc.gc_cpu_ms"                , Counter $ toMs gcCpuSeconds)
+    , ("rts.gc.gc_wall_ms"               , Counter $ toMs gcWallSeconds)
+    , ("rts.gc.cpu_ms"                   , Counter $ toMs cpuSeconds)
+    , ("rts.gc.wall_ms"                  , Counter $ toMs wallSeconds)
+    , ("rts.gc.max_bytes_used"           , Gauge $ int maxBytesUsed)
+    , ("rts.gc.current_bytes_used"       , Gauge $ int currentBytesUsed)
+    , ("rts.gc.current_bytes_slop"       , Gauge $ int currentBytesSlop)
+    , ("rts.gc.max_bytes_slop"           , Gauge $ int maxBytesSlop)
+    , ("rts.gc.peak_megabytes_allocated" , Gauge $ int peakMegabytesAllocated)
+    , ("rts.gc.par_tot_bytes_copied"     , Gauge $ int (gcParTotBytesCopied s))
+    , ("rts.gc.par_avg_bytes_copied"     , Gauge $ int (gcParTotBytesCopied s))
+    , ("rts.gc.par_max_bytes_copied"     , Gauge $ int parMaxBytesCopied)
+    ]
   where
-    counters = [
-          ("rts.gc.bytes_allocated"          , int bytesAllocated)
-        , ("rts.gc.num_gcs"                  , int numGcs)
-        , ("rts.gc.num_bytes_usage_samples"  , int numByteUsageSamples)
-        , ("rts.gc.cumulative_bytes_used"    , int cumulativeBytesUsed)
-        , ("rts.gc.bytes_copied"             , int bytesCopied)
-        , ("rts.gc.mutator_cpu_ms"           , toMs mutatorCpuSeconds)
-        , ("rts.gc.mutator_wall_ms"          , toMs mutatorWallSeconds)
-        , ("rts.gc.gc_cpu_ms"                , toMs gcCpuSeconds)
-        , ("rts.gc.gc_wall_ms"               , toMs gcWallSeconds)
-        , ("rts.gc.cpu_ms"                   , toMs cpuSeconds)
-        , ("rts.gc.wall_ms"                  , toMs wallSeconds)
-        ]
-    gauges = [
-          ("rts.gc.max_bytes_used"           , int maxBytesUsed)
-        , ("rts.gc.current_bytes_used"       , int currentBytesUsed)
-        , ("rts.gc.current_bytes_slop"       , int currentBytesSlop)
-        , ("rts.gc.max_bytes_slop"           , int maxBytesSlop)
-        , ("rts.gc.peak_megabytes_allocated" , int peakMegabytesAllocated)
-        , ("rts.gc.par_tot_bytes_copied"     , int (gcParTotBytesCopied s))
-        , ("rts.gc.par_avg_bytes_copied"     , int (gcParTotBytesCopied s))
-        , ("rts.gc.par_max_bytes_copied"     , int parMaxBytesCopied)
-        ]
     int = fromIntegral
 
 getGcStats :: IO Stats.GCStats

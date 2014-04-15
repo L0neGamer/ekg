@@ -67,10 +67,7 @@ forkStatsd opts store = do
   where
     unsupportedAddressError = ioError $ userError $
         "unsupported address: " ++ host opts
-    emptySample = Metrics.Metrics { metricsCounters = M.empty
-                                  , metricsGauges   = M.empty
-                                  , metricsLabels   = M.empty
-                                  }
+    emptySample = M.empty
 
 loop :: Metrics.Store
      -> Metrics.Metrics  -- ^ Last sampled metrics
@@ -92,43 +89,33 @@ time = (round . (* 1000000.0) . toDouble) `fmap` getPOSIXTime
   where toDouble = realToFrac :: Real a => a -> Double
 
 diffSamples :: Metrics.Metrics -> Metrics.Metrics -> Metrics.Metrics
-diffSamples old new =
-    Metrics.Metrics
-    { metricsCounters = diffMetrics (Metrics.metricsCounters old)
-                        (Metrics.metricsCounters new)
-    , metricsGauges   = diffMetrics (Metrics.metricsGauges old)
-                        (Metrics.metricsGauges new)
-    , metricsLabels   = diffMetrics (Metrics.metricsLabels old)
-                        (Metrics.metricsLabels new)
-    }
+diffSamples old new = diffMetrics old new
 
-diffMetrics :: Eq a => M.HashMap T.Text a -> M.HashMap T.Text a
-            -> M.HashMap T.Text a
+-- TODO: Combine different metrics somehow.
+diffMetrics :: M.HashMap T.Text Metrics.Metric -> M.HashMap T.Text Metrics.Metric
+            -> M.HashMap T.Text Metrics.Metric
 diffMetrics old new = M.foldlWithKey' combine M.empty new
   where
     combine m name val = case M.lookup name old of
         Just val'
             | val == val' -> m
         _                 -> M.insert name val m
-{-# SPECIALIZE diffMetrics :: M.HashMap T.Text Int -> M.HashMap T.Text Int
-                           -> M.HashMap T.Text Int #-}
-{-# SPECIALIZE diffMetrics :: M.HashMap T.Text T.Text -> M.HashMap T.Text T.Text
-                           -> M.HashMap T.Text T.Text #-}
 
 flushSample :: Metrics.Metrics -> Socket.Socket -> StatsdOptions -> IO ()
-flushSample Metrics.Metrics{..} socket opts = do
-    forM_ (M.toList $ metricsCounters) $ \ (name, val) ->
-        flushMetric "|c" name val
-
-    forM_ (M.toList $ metricsGauges) $ \ (name, val) -> do
-        flushMetric "|g" name val
+flushSample sample socket opts = do
+    forM_ (M.toList $ sample) $ \ (name, val) ->
+        flushMetric name val
   where
+    flushMetric name (Metrics.Counter n) = send "|c" name (show n)
+    flushMetric name (Metrics.Gauge n)   = send "|g" name (show n)
+    flushMetric _ _                      = return ()
+
     isDebug = debug opts
-    flushMetric ty name val = do
+    send ty name val = do
         let msg = B8.concat
                   [ T.encodeUtf8 name
                   , ":"
-                  , B8.pack $ show val
+                  , B8.pack val
                   , ty
                   ]
         when isDebug $ B8.hPutStrLn stderr $ B8.concat

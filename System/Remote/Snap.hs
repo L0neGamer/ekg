@@ -112,7 +112,7 @@ serve store = do
                 r <- getResponse
                 finishWith r
             Right name -> do
-                metrics <- liftIO $ sampleCombined store
+                metrics <- liftIO $ sampleAll store
                 case M.lookup name metrics of
                     Nothing -> pass
                     Just metric -> writeLBS $ encodeOne metric
