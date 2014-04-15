@@ -16,6 +16,7 @@ module System.Metrics
     , registerCounter
     , registerGauge
     , registerLabel
+    , registerCallback
 
       -- * Sampling
     , Metrics
@@ -26,7 +27,9 @@ module System.Metrics
 import Control.Applicative ((<$>))
 import Control.Monad (forM)
 import Data.Int (Int64)
+import qualified Data.IntMap.Strict as IM
 import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
+import qualified Data.List as List
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -43,7 +46,18 @@ import qualified System.Remote.Label.Internal as Label
 ------------------------------------------------------------------------
 -- * Types
 
-newtype Store = Store { metricMaps :: IORef (M.HashMap T.Text MetricSampler) }
+newtype Store = Store { storeState :: IORef State }
+
+data State = State
+     { stateMetrics   :: !(M.HashMap T.Text MetricRef)
+     , stateCallbacks :: !(IM.IntMap (IO ()))
+     , stateNextId    :: {-# UNPACK #-} !Int
+     }
+
+data MetricRef = MetricRef
+     { metricSample   :: !MetricSampler
+     , metricCallback :: !(Maybe Int)
+     }
 
 -- TODO: Rename this to Metric and Metric to SampledMetric.
 data MetricSampler = CounterS !(IO Int)
@@ -52,21 +66,45 @@ data MetricSampler = CounterS !(IO Int)
 
 newStore :: IO Store
 newStore = do
-    maps <- newIORef $ M.empty
-    return $ Store maps
+    state <- newIORef $ State M.empty IM.empty 0
+    return $ Store state
 
 ------------------------------------------------------------------------
 -- * User-defined counters, gauges and labels
+
+registerCallback :: [T.Text] -> IO () -> Store -> IO ()
+registerCallback names cb store = do
+    atomicModifyIORef (storeState store) $ \ State{..} ->
+        let !state' = State
+                { stateMetrics = List.foldl' (register_ stateNextId)
+                                 stateMetrics names
+                , stateCallbacks = IM.insert stateNextId cb stateCallbacks
+                , stateNextId    = stateNextId + 1
+                }
+       in (state', ())
+  where
+    register_ cbId metrics name = case M.lookup name metrics of
+        Nothing ->
+            error $ "No metric named \"" ++ T.unpack name ++ "\"."
+        Just (MetricRef _ (Just _)) ->
+            error $ "A callback has already been associated with metric \"" ++
+            T.unpack name ++ "\""
+        Just (MetricRef sampler _) ->
+            M.insert name (MetricRef sampler (Just cbId)) metrics
 
 register :: T.Text
          -> MetricSampler
          -> Store
          -> IO ()
 register name sample store = do
-    atomicModifyIORef (metricMaps store) $ \ m ->
-        case M.member name m of
-            False -> let !m' = M.insert name sample m
-                     in (m', ())
+    atomicModifyIORef (storeState store) $ \ state@State{..} ->
+        case M.member name stateMetrics of
+            False -> let !state' = state {
+                               stateMetrics = M.insert name
+                                              (MetricRef sample Nothing)
+                                              stateMetrics
+                             }
+                     in (state', ())
             True  -> alreadyInUseError name
 
 alreadyInUseError :: T.Text -> a
@@ -134,7 +172,10 @@ type Metrics = M.HashMap T.Text Metric
 sampleAll :: Store -> IO Metrics
 sampleAll store = do
     time <- getTimeMs
-    metrics <- readIORef $ metricMaps store
+    state <- readIORef (storeState store)
+    let metrics = stateMetrics state
+        callbacks = stateCallbacks state
+    sequence_ $ IM.elems callbacks
     sample <- readAllRefs metrics
     gcSample <- sampleGcStats <$> getGcStats
     let allSamples = sample ++ gcSample ++
@@ -157,10 +198,10 @@ sampleOne (LabelS m)   = Label <$> m
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: M.HashMap T.Text MetricSampler -> IO [(T.Text, Metric)]
+readAllRefs :: M.HashMap T.Text MetricRef -> IO [(T.Text, Metric)]
 readAllRefs m = do
-    forM (M.toList m) $ \ (name, sampler) -> do
-        val <- sampleOne sampler
+    forM (M.toList m) $ \ (name, ref) -> do
+        val <- sampleOne (metricSample ref)
         return (name, val)
 {-# INLINABLE readAllRefs #-}
 
