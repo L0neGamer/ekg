@@ -72,11 +72,13 @@ encodeAll metrics =
 encodeOne :: Metric -> L.ByteString
 encodeOne (Counter n) = encodeMetric n CounterType
 encodeOne (Gauge n)   = encodeMetric n GaugeType
-encodeOne (Label n)   = encodeMetric n LabelType
+encodeOne (Label l)   = encodeMetric l LabelType
 
 encodeMetric :: A.ToJSON a => a -> MetricType -> L.ByteString
 encodeMetric val ty = A.encode $ A.object [
     ("val", A.toJSON val), ("type", A.toJSON (metricType ty))]
+{-# SPECIALIZE encodeMetric :: Int -> MetricType -> L.ByteString #-}
+{-# SPECIALIZE encodeMetric :: T.Text -> MetricType -> L.ByteString #-}
 
 typeMismatch :: String   -- ^ The expected type
              -> A.Value  -- ^ The actual value encountered
