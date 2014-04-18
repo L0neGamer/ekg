@@ -89,27 +89,27 @@ newStore = do
 
 -- | Register a non-negative, monotonically increasing integer-valued
 -- metric. The provided action to read the value must be thread-safe.
-registerCounter :: T.Text  -- ^ The metric name
+registerCounter :: T.Text  -- ^ Metric name
                 -> IO Int  -- ^ Action to read the value
-                -> Store   -- ^ The metric store
+                -> Store   -- ^ Metric store
                 -> IO ()
 registerCounter name sample store =
     register name (CounterS sample) store
 
 -- | Register an integer-valued metric. The provided action to read
 -- the value must be thread-safe.
-registerGauge :: T.Text  -- ^ The metric name
+registerGauge :: T.Text  -- ^ Metric name
               -> IO Int  -- ^ Action to read the value
-              -> Store   -- ^ The metric store
+              -> Store   -- ^ Metric store
               -> IO ()
 registerGauge name sample store =
     register name (GaugeS sample) store
 
 -- | Register a text metric. The provided action to read the value
 -- must be thread-safe.
-registerLabel :: T.Text     -- ^ The metric name
+registerLabel :: T.Text     -- ^ Metric name
               -> IO T.Text  -- ^ Action to read the value
-              -> Store      -- ^ The metric store
+              -> Store      -- ^ Metric store
               -> IO ()
 registerLabel name sample store =
     register name (LabelS sample) store
@@ -170,7 +170,7 @@ registerCallback
     :: M.HashMap T.Text (a -> Value)  -- ^ Metric names and
                                       -- projection functions.
     -> IO a                           -- ^ The metrics sampler
-    -> Store                          -- ^ The metric store
+    -> Store                          -- ^ Metric store
     -> IO ()
 registerCallback getters cb store = do
     atomicModifyIORef (storeState store) $ \ State{..} ->
@@ -190,8 +190,8 @@ registerCallback getters cb store = do
 
 -- | Create and register a zero-initialized counter.
 createCounter :: T.Text  -- ^ Counter name
-           -> Store   -- ^ The metric store
-           -> IO Counter
+              -> Store   -- ^ Metric store
+              -> IO Counter
 createCounter name store = do
     counter <- Counter.new
     registerCounter name (Counter.read counter) store
@@ -199,8 +199,8 @@ createCounter name store = do
 
 -- | Create and register a zero-initialized gauge.
 createGauge :: T.Text  -- ^ Gauge name
-         -> Store   -- ^ The metric store
-         -> IO Gauge
+            -> Store   -- ^ Metric store
+            -> IO Gauge
 createGauge name store = do
     gauge <- Gauge.new
     registerGauge name (Gauge.read gauge) store
@@ -208,8 +208,8 @@ createGauge name store = do
 
 -- | Create and register an empty label.
 createLabel :: T.Text  -- ^ Label name
-         -> Store   -- ^ The metric store
-         -> IO Label
+            -> Store   -- ^ Metric store
+            -> IO Label
 createLabel name store = do
     label <- Label.new
     registerLabel name (Label.read label) store
@@ -257,9 +257,9 @@ sampleCallbacks cbSamplers = concat `fmap` sequence (map runOne cbSamplers)
 
 -- | The kind of metrics that can be sampled.
 data Value = Counter {-# UNPACK #-} !Int
-            | Gauge {-# UNPACK #-} !Int
-            | Label {-# UNPACK #-} !T.Text
-            deriving (Eq, Show)
+           | Gauge {-# UNPACK #-} !Int
+           | Label {-# UNPACK #-} !T.Text
+           deriving (Eq, Show)
 
 sampleOne :: MetricSampler -> IO Value
 sampleOne (CounterS m) = Counter <$> m
