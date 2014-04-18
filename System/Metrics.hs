@@ -47,7 +47,7 @@ module System.Metrics
     , registerCounter
     , registerGauge
     , registerLabel
-    , registerMetricGroup
+    , registerGroup
 
       -- ** Convenience functions
       -- $convenience
@@ -233,14 +233,14 @@ alreadyInUseError name =
 -- >         [ ("num_gcs", numGcs)
 -- >         , ("max_bytes_used", maxBytesUsed)]
 -- >         ]
--- >     registerMetricGroup (M.fromList metrics) getGCStats store
-registerMetricGroup
+-- >     registerGroup (M.fromList metrics) getGCStats store
+registerGroup
     :: M.HashMap T.Text
        (a -> Value)  -- ^ Metric names and projection functions.
     -> IO a          -- ^ Action to sample the metric group
     -> Store         -- ^ Metric store
     -> IO ()
-registerMetricGroup getters cb store = do
+registerGroup getters cb store = do
     atomicModifyIORef (storeState store) $ \ State{..} ->
         let !state' = State
                 { stateMetrics = M.foldlWithKey' (register_ stateNextId)
@@ -366,7 +366,7 @@ toMs s = round (s * 1000.0)
 -- threads (set by the RTS flag @-N@) for a maximally parallel run.
 registerGcStats :: Store -> IO ()
 registerGcStats store =
-    registerMetricGroup
+    registerGroup
     (M.fromList
      [ ("rts.gc.bytes_allocated"          , Counter . int . Stats.bytesAllocated)
      , ("rts.gc.num_gcs"                  , Counter . int . Stats.numGcs)
@@ -443,8 +443,8 @@ gcParTotBytesCopied = Stats.parAvgBytesCopied
 -- The metrics register in the store can be sampled together. Sampling
 -- is /not/ atomic. While each metric will be retrieved atomically,
 -- the sample is not an atomic snapshot of the system as a whole. See
--- 'registerMetricGroup' for an explanation of how to sample a subset
--- of all metrics atomically.
+-- 'registerGroup' for an explanation of how to sample a subset of all
+-- metrics atomically.
 
 -- | A sample of some metrics.
 type Sample = M.HashMap T.Text Value
