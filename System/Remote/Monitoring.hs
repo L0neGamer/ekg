@@ -261,7 +261,7 @@ data Server = Server {
 getCounter :: T.Text  -- ^ Counter name
            -> Server  -- ^ Server that will serve the counter
            -> IO Counter
-getCounter name server = Metrics.getCounter name (metricStore server)
+getCounter name server = Metrics.createCounter name (metricStore server)
 
 -- | Return the gauge associated with the given name and server.
 -- Multiple calls to 'getGauge' with the same arguments will return
@@ -270,7 +270,7 @@ getCounter name server = Metrics.getCounter name (metricStore server)
 getGauge :: T.Text  -- ^ Gauge name
          -> Server  -- ^ Server that will serve the gauge
          -> IO Gauge
-getGauge name server = Metrics.getGauge name (metricStore server)
+getGauge name server = Metrics.createGauge name (metricStore server)
 
 -- | Return the label associated with the given name and server.
 -- Multiple calls to 'getLabel' with the same arguments will return
@@ -279,4 +279,4 @@ getGauge name server = Metrics.getGauge name (metricStore server)
 getLabel :: T.Text  -- ^ Label name
          -> Server  -- ^ Server that will serve the label
          -> IO Label
-getLabel name server = Metrics.getLabel name (metricStore server)
+getLabel name server = Metrics.createLabel name (metricStore server)

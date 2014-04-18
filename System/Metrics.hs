@@ -18,9 +18,9 @@ module System.Metrics
     , registerCallback
 
       -- ** Convenience functions
-    , getCounter
-    , getGauge
-    , getLabel
+    , createCounter
+    , createGauge
+    , createLabel
 
       -- ** Built-in metrics
     , registerGCStats
@@ -189,28 +189,28 @@ registerCallback getters cb store = do
         Just _  -> alreadyInUseError name
 
 -- | Create and register a zero-initialized counter.
-getCounter :: T.Text  -- ^ Counter name
+createCounter :: T.Text  -- ^ Counter name
            -> Store   -- ^ The metric store
            -> IO Counter
-getCounter name store = do
+createCounter name store = do
     counter <- Counter.new
     registerCounter name (Counter.read counter) store
     return counter
 
 -- | Create and register a zero-initialized gauge.
-getGauge :: T.Text  -- ^ Gauge name
+createGauge :: T.Text  -- ^ Gauge name
          -> Store   -- ^ The metric store
          -> IO Gauge
-getGauge name store = do
+createGauge name store = do
     gauge <- Gauge.new
     registerGauge name (Gauge.read gauge) store
     return gauge
 
 -- | Create and register an empty label.
-getLabel :: T.Text  -- ^ Label name
+createLabel :: T.Text  -- ^ Label name
          -> Store   -- ^ The metric store
          -> IO Label
-getLabel name store = do
+createLabel name store = do
     label <- Label.new
     registerLabel name (Label.read label) store
     return label
