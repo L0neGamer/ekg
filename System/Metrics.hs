@@ -153,12 +153,15 @@ alreadyInUseError name =
 -- Example usage:
 --
 -- > import qualified Data.HashMap.Strict as M
--- >
--- > getGCStats :: IO GCStats
+-- > import GHC.Stats
 -- >
 -- > main = do
 -- >     store <- newStore
--- >     registerCallback (M.fromList [("numGcs", numGcs)]) getGCStats store
+-- >     let metrics =
+-- >         [ ("num_gcs", numGcs)
+-- >         , ("max_bytes_used", maxBytesUsed)]
+-- >         ]
+-- >     registerCallback (M.fromList metrics) getGCStats store
 registerCallback
     :: M.HashMap T.Text (a -> Metric)  -- ^ Metric names and
                                        -- projection functions.
