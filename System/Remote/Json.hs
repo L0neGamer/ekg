@@ -39,7 +39,7 @@ metricType LabelType   = "l"
 -- >   }
 -- > }
 --
-encodeAll :: Metrics -> L.ByteString
+encodeAll :: Sample -> L.ByteString
 encodeAll metrics =
     A.encode $ buildOne metrics $ A.emptyObject
   where

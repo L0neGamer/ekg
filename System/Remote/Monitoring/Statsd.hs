@@ -70,8 +70,8 @@ forkStatsd opts store = do
     emptySample = M.empty
 
 loop :: Metrics.Store
-     -> Metrics.Metrics  -- ^ Last sampled metrics
-     -> Socket.Socket    -- ^ Connected socket
+     -> Metrics.Sample  -- ^ Last sampled metrics
+     -> Socket.Socket   -- ^ Connected socket
      -> StatsdOptions
      -> IO ()
 loop store lastSample socket opts = do
@@ -88,7 +88,7 @@ time :: IO Int64
 time = (round . (* 1000000.0) . toDouble) `fmap` getPOSIXTime
   where toDouble = realToFrac :: Real a => a -> Double
 
-diffSamples :: Metrics.Metrics -> Metrics.Metrics -> Metrics.Metrics
+diffSamples :: Metrics.Sample -> Metrics.Sample -> Metrics.Sample
 diffSamples old new = diffMetrics old new
 
 -- TODO: Combine different metrics somehow.
@@ -101,7 +101,7 @@ diffMetrics old new = M.foldlWithKey' combine M.empty new
             | val == val' -> m
         _                 -> M.insert name val m
 
-flushSample :: Metrics.Metrics -> Socket.Socket -> StatsdOptions -> IO ()
+flushSample :: Metrics.Sample -> Socket.Socket -> StatsdOptions -> IO ()
 flushSample sample socket opts = do
     forM_ (M.toList $ sample) $ \ (name, val) ->
         flushMetric name val

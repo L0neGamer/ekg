@@ -62,7 +62,7 @@ module System.Metrics
 
       -- * Sampling metrics
       -- $sampling
-    , Metrics
+    , Sample
     , sampleAll
     , Value(..)
     ) where
@@ -447,12 +447,12 @@ gcParTotBytesCopied = Stats.parAvgBytesCopied
 -- of all metrics atomically.
 
 -- | A sample of some metrics.
-type Metrics = M.HashMap T.Text Value
+type Sample = M.HashMap T.Text Value
 
 -- | Sample all metrics. Sampling is /not/ atomic in the sense that
 -- some metrics might have been mutated before they're sampled but
 -- after some other metrics have already been sampled.
-sampleAll :: Store -> IO Metrics
+sampleAll :: Store -> IO Sample
 sampleAll store = do
     time <- getTimeMs
     state <- readIORef (storeState store)
@@ -475,7 +475,7 @@ sampleCallbacks cbSamplers = concat `fmap` sequence (map runOne cbSamplers)
         a <- metricCallback
         return $! map (\ (n, f) -> (n, f a)) (M.toList metricGetters)
 
--- | The kind of metrics that can be sampled.
+-- | The value of a sampled metric.
 data Value = Counter {-# UNPACK #-} !Int
            | Gauge {-# UNPACK #-} !Int
            | Label {-# UNPACK #-} !T.Text
