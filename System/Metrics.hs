@@ -198,7 +198,7 @@ alreadyInUseError name =
 -- metrics computed from the value it returns needs to be sampled.
 --
 -- When one or more of the metrics listed in the first argument needs
--- to be sampled, the action is executed and the provided projection
+-- to be sampled, the action is executed and the provided getter
 -- functions will be used to extract the metric(s) from the action's
 -- return value.
 --
@@ -236,7 +236,7 @@ alreadyInUseError name =
 -- >     registerGroup (M.fromList metrics) getGCStats store
 registerGroup
     :: M.HashMap T.Text
-       (a -> Value)  -- ^ Metric names and projection functions.
+       (a -> Value)  -- ^ Metric names and getter functions.
     -> IO a          -- ^ Action to sample the metric group
     -> Store         -- ^ Metric store
     -> IO ()
