@@ -294,64 +294,6 @@ createLabel name store = do
     return label
 
 ------------------------------------------------------------------------
--- * Sampling metrics
-
--- $sampling
--- The metrics register in the store can be sampled together. Sampling
--- is /not/ atomic. While each metric will be retrieved atomically,
--- the sample is not an atomic snapshot of the system as a whole. See
--- 'registerMetricGroup' for an explanation of how to sample a subset
--- of all metrics atomically.
-
--- | A sample of some metrics.
-type Metrics = M.HashMap T.Text Value
-
--- | Sample all metrics.
-sampleAll :: Store -> IO Metrics
-sampleAll store = do
-    time <- getTimeMs
-    state <- readIORef (storeState store)
-    let metrics = stateMetrics state
-        callbacks = stateCallbacks state
-    cbSample <- sampleCallbacks $ IM.elems callbacks
-    sample <- readAllRefs metrics
-    let allSamples = sample ++ cbSample ++
-                     [("server_timestamp_ms", Counter time)]
-    return $! M.fromList allSamples
-  where
-    getTimeMs :: IO Int
-    getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
-
-sampleCallbacks :: [CallbackSampler] -> IO [(T.Text, Value)]
-sampleCallbacks cbSamplers = concat `fmap` sequence (map runOne cbSamplers)
-  where
-    runOne :: CallbackSampler -> IO [(T.Text, Value)]
-    runOne CallbackSampler{..} = do
-        a <- metricCallback
-        return $! map (\ (n, f) -> (n, f a)) (M.toList metricGetters)
-
--- | The kind of metrics that can be sampled.
-data Value = Counter {-# UNPACK #-} !Int
-           | Gauge {-# UNPACK #-} !Int
-           | Label {-# UNPACK #-} !T.Text
-           deriving (Eq, Show)
-
-sampleOne :: MetricSampler -> IO Value
-sampleOne (CounterS m) = Counter <$> m
-sampleOne (GaugeS m)   = Gauge <$> m
-sampleOne (LabelS m)   = Label <$> m
-
--- | Get a snapshot of all values.  Note that we're not guaranteed to
--- see a consistent snapshot of the whole map.
-readAllRefs :: M.HashMap T.Text (Either MetricSampler CallbackId)
-            -> IO [(T.Text, Value)]
-readAllRefs m = do
-    forM ([(name, ref) | (name, Left ref) <- M.toList m]) $ \ (name, ref) -> do
-        val <- sampleOne ref
-        return (name, val)
-{-# INLINABLE readAllRefs #-}
-
-------------------------------------------------------------------------
 -- * Predefined metrics
 
 -- $predefined
@@ -493,3 +435,63 @@ gcParTotBytesCopied = Stats.parTotBytesCopied
 #else
 gcParTotBytesCopied = Stats.parAvgBytesCopied
 #endif
+
+------------------------------------------------------------------------
+-- * Sampling metrics
+
+-- $sampling
+-- The metrics register in the store can be sampled together. Sampling
+-- is /not/ atomic. While each metric will be retrieved atomically,
+-- the sample is not an atomic snapshot of the system as a whole. See
+-- 'registerMetricGroup' for an explanation of how to sample a subset
+-- of all metrics atomically.
+
+-- | A sample of some metrics.
+type Metrics = M.HashMap T.Text Value
+
+-- | Sample all metrics. Sampling is /not/ atomic in the sense that
+-- some metrics might have been mutated before they're sampled but
+-- after some other metrics have already been sampled.
+sampleAll :: Store -> IO Metrics
+sampleAll store = do
+    time <- getTimeMs
+    state <- readIORef (storeState store)
+    let metrics = stateMetrics state
+        callbacks = stateCallbacks state
+    cbSample <- sampleCallbacks $ IM.elems callbacks
+    sample <- readAllRefs metrics
+    let allSamples = sample ++ cbSample ++
+                     [("server_timestamp_ms", Counter time)]
+    return $! M.fromList allSamples
+  where
+    getTimeMs :: IO Int
+    getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
+
+sampleCallbacks :: [CallbackSampler] -> IO [(T.Text, Value)]
+sampleCallbacks cbSamplers = concat `fmap` sequence (map runOne cbSamplers)
+  where
+    runOne :: CallbackSampler -> IO [(T.Text, Value)]
+    runOne CallbackSampler{..} = do
+        a <- metricCallback
+        return $! map (\ (n, f) -> (n, f a)) (M.toList metricGetters)
+
+-- | The kind of metrics that can be sampled.
+data Value = Counter {-# UNPACK #-} !Int
+           | Gauge {-# UNPACK #-} !Int
+           | Label {-# UNPACK #-} !T.Text
+           deriving (Eq, Show)
+
+sampleOne :: MetricSampler -> IO Value
+sampleOne (CounterS m) = Counter <$> m
+sampleOne (GaugeS m)   = Gauge <$> m
+sampleOne (LabelS m)   = Label <$> m
+
+-- | Get a snapshot of all values.  Note that we're not guaranteed to
+-- see a consistent snapshot of the whole map.
+readAllRefs :: M.HashMap T.Text (Either MetricSampler CallbackId)
+            -> IO [(T.Text, Value)]
+readAllRefs m = do
+    forM ([(name, ref) | (name, Left ref) <- M.toList m]) $ \ (name, ref) -> do
+        val <- sampleOne ref
+        return (name, val)
+{-# INLINABLE readAllRefs #-}
