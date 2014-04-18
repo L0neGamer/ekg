@@ -25,7 +25,7 @@ module System.Metrics
       -- $sampling
     , Metrics
     , sampleAll
-    , Metric(..)
+    , Value(..)
     ) where
 
 import Control.Applicative ((<$>))
@@ -62,7 +62,7 @@ data State = State
 
 data CallbackSampler = forall a. CallbackSampler
      { metricCallback :: IO a
-     , metricGetters  :: M.HashMap T.Text (a -> Metric)
+     , metricGetters  :: M.HashMap T.Text (a -> Value)
      }
 
 -- TODO: Rename this to Metric and Metric to SampledMetric.
@@ -163,10 +163,10 @@ alreadyInUseError name =
 -- >         ]
 -- >     registerCallback (M.fromList metrics) getGCStats store
 registerCallback
-    :: M.HashMap T.Text (a -> Metric)  -- ^ Metric names and
-                                       -- projection functions.
-    -> IO a                            -- ^ The metrics sampler
-    -> Store                           -- ^ The metric store
+    :: M.HashMap T.Text (a -> Value)  -- ^ Metric names and
+                                      -- projection functions.
+    -> IO a                           -- ^ The metrics sampler
+    -> Store                          -- ^ The metric store
     -> IO ()
 registerCallback getters cb store = do
     atomicModifyIORef (storeState store) $ \ State{..} ->
@@ -225,7 +225,7 @@ getLabel name store = do
 -- being sampled are run.
 
 -- | A sample of some metrics.
-type Metrics = M.HashMap T.Text Metric
+type Metrics = M.HashMap T.Text Value
 
 -- | Sample all metrics.
 sampleAll :: Store -> IO Metrics
@@ -244,21 +244,21 @@ sampleAll store = do
     getTimeMs :: IO Int
     getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
 
-sampleCallbacks :: [CallbackSampler] -> IO [(T.Text, Metric)]
+sampleCallbacks :: [CallbackSampler] -> IO [(T.Text, Value)]
 sampleCallbacks cbSamplers = concat `fmap` sequence (map runOne cbSamplers)
   where
-    runOne :: CallbackSampler -> IO [(T.Text, Metric)]
+    runOne :: CallbackSampler -> IO [(T.Text, Value)]
     runOne CallbackSampler{..} = do
         a <- metricCallback
         return $! map (\ (n, f) -> (n, f a)) (M.toList metricGetters)
 
 -- | The kind of metrics that can be sampled.
-data Metric = Counter {-# UNPACK #-} !Int
+data Value = Counter {-# UNPACK #-} !Int
             | Gauge {-# UNPACK #-} !Int
             | Label {-# UNPACK #-} !T.Text
             deriving (Eq, Show)
 
-sampleOne :: MetricSampler -> IO Metric
+sampleOne :: MetricSampler -> IO Value
 sampleOne (CounterS m) = Counter <$> m
 sampleOne (GaugeS m)   = Gauge <$> m
 sampleOne (LabelS m)   = Label <$> m
@@ -266,7 +266,7 @@ sampleOne (LabelS m)   = Label <$> m
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
 readAllRefs :: M.HashMap T.Text (Either MetricSampler CallbackId)
-            -> IO [(T.Text, Metric)]
+            -> IO [(T.Text, Value)]
 readAllRefs m = do
     forM ([(name, ref) | (name, Left ref) <- M.toList m]) $ \ (name, ref) -> do
         val <- sampleOne ref
@@ -281,7 +281,7 @@ toMs :: Double -> Int
 toMs s = round (s * 1000.0)
 
 -- | Sample GC statistics into counters and gauges.
-sampleGcStats :: Stats.GCStats -> [(T.Text, Metric)]
+sampleGcStats :: Stats.GCStats -> [(T.Text, Value)]
 sampleGcStats s@(Stats.GCStats {..}) =
     [ ("rts.gc.bytes_allocated"          , Counter $ int bytesAllocated)
     , ("rts.gc.num_gcs"                  , Counter $ int numGcs)

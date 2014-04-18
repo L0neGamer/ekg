@@ -92,8 +92,8 @@ diffSamples :: Metrics.Metrics -> Metrics.Metrics -> Metrics.Metrics
 diffSamples old new = diffMetrics old new
 
 -- TODO: Combine different metrics somehow.
-diffMetrics :: M.HashMap T.Text Metrics.Metric -> M.HashMap T.Text Metrics.Metric
-            -> M.HashMap T.Text Metrics.Metric
+diffMetrics :: M.HashMap T.Text Metrics.Value -> M.HashMap T.Text Metrics.Value
+            -> M.HashMap T.Text Metrics.Value
 diffMetrics old new = M.foldlWithKey' combine M.empty new
   where
     combine m name val = case M.lookup name old of

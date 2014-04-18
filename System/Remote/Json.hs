@@ -43,13 +43,13 @@ encodeAll :: Metrics -> L.ByteString
 encodeAll metrics =
     A.encode $ buildOne metrics $ A.emptyObject
   where
-    buildOne :: M.HashMap T.Text Metric -> A.Value -> A.Value
+    buildOne :: M.HashMap T.Text Value -> A.Value -> A.Value
     buildOne m o = M.foldlWithKey' build o m
 
-    build :: A.Value -> T.Text -> Metric -> A.Value
+    build :: A.Value -> T.Text -> Value -> A.Value
     build m name val = go m (T.splitOn "." name) val
 
-    go :: A.Value -> [T.Text] -> Metric -> A.Value
+    go :: A.Value -> [T.Text] -> Value -> A.Value
     go (A.Object m) [str] val      = A.Object $ M.insert str metric m
       where metric = buildOneM val
     go (A.Object m) (str:rest) val = case M.lookup str m of
@@ -57,7 +57,7 @@ encodeAll metrics =
         Just m' -> A.Object $ M.insert str (go m' rest val) m
     go v _ _                        = typeMismatch "Object" v
 
-buildOneM :: Metric -> A.Value
+buildOneM :: Value -> A.Value
 buildOneM (Counter n) = goOne n CounterType
 buildOneM (Gauge n)   = goOne n GaugeType
 buildOneM (Label l)   = goOne l LabelType
@@ -66,7 +66,7 @@ goOne :: A.ToJSON a => a -> MetricType -> A.Value
 goOne val ty = A.object [
     ("val", A.toJSON val), ("type", A.toJSON (metricType ty))]
 
-encodeOne :: Metric -> L.ByteString
+encodeOne :: Value -> L.ByteString
 encodeOne (Counter n) = encodeMetric n CounterType
 encodeOne (Gauge n)   = encodeMetric n GaugeType
 encodeOne (Label l)   = encodeMetric l LabelType
