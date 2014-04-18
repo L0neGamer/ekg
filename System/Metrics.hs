@@ -16,10 +16,14 @@ module System.Metrics
     , registerGauge
     , registerLabel
     , registerCallback
+
       -- ** Convenience functions
     , getCounter
     , getGauge
     , getLabel
+
+      -- ** Built-in metrics
+    , registerGCStats
 
       -- * Sampling metrics
       -- $sampling
@@ -236,8 +240,7 @@ sampleAll store = do
         callbacks = stateCallbacks state
     cbSample <- sampleCallbacks $ IM.elems callbacks
     sample <- readAllRefs metrics
-    gcSample <- sampleGcStats <$> getGcStats
-    let allSamples = sample ++ cbSample ++ gcSample ++
+    let allSamples = sample ++ cbSample ++
                      [("server_timestamp_ms", Counter time)]
     return $! M.fromList allSamples
   where
@@ -280,29 +283,32 @@ readAllRefs m = do
 toMs :: Double -> Int
 toMs s = round (s * 1000.0)
 
--- | Sample GC statistics into counters and gauges.
-sampleGcStats :: Stats.GCStats -> [(T.Text, Value)]
-sampleGcStats s@(Stats.GCStats {..}) =
-    [ ("rts.gc.bytes_allocated"          , Counter $ int bytesAllocated)
-    , ("rts.gc.num_gcs"                  , Counter $ int numGcs)
-    , ("rts.gc.num_bytes_usage_samples"  , Counter $ int numByteUsageSamples)
-    , ("rts.gc.cumulative_bytes_used"    , Counter $ int cumulativeBytesUsed)
-    , ("rts.gc.bytes_copied"             , Counter $ int bytesCopied)
-    , ("rts.gc.mutator_cpu_ms"           , Counter $ toMs mutatorCpuSeconds)
-    , ("rts.gc.mutator_wall_ms"          , Counter $ toMs mutatorWallSeconds)
-    , ("rts.gc.gc_cpu_ms"                , Counter $ toMs gcCpuSeconds)
-    , ("rts.gc.gc_wall_ms"               , Counter $ toMs gcWallSeconds)
-    , ("rts.gc.cpu_ms"                   , Counter $ toMs cpuSeconds)
-    , ("rts.gc.wall_ms"                  , Counter $ toMs wallSeconds)
-    , ("rts.gc.max_bytes_used"           , Gauge $ int maxBytesUsed)
-    , ("rts.gc.current_bytes_used"       , Gauge $ int currentBytesUsed)
-    , ("rts.gc.current_bytes_slop"       , Gauge $ int currentBytesSlop)
-    , ("rts.gc.max_bytes_slop"           , Gauge $ int maxBytesSlop)
-    , ("rts.gc.peak_megabytes_allocated" , Gauge $ int peakMegabytesAllocated)
-    , ("rts.gc.par_tot_bytes_copied"     , Gauge $ int (gcParTotBytesCopied s))
-    , ("rts.gc.par_avg_bytes_copied"     , Gauge $ int (gcParTotBytesCopied s))
-    , ("rts.gc.par_max_bytes_copied"     , Gauge $ int parMaxBytesCopied)
-    ]
+registerGCStats :: Store -> IO ()
+registerGCStats store =
+    registerCallback
+    (M.fromList
+     [ ("rts.gc.bytes_allocated"          , Counter . int . Stats.bytesAllocated)
+     , ("rts.gc.num_gcs"                  , Counter . int . Stats.numGcs)
+     , ("rts.gc.num_bytes_usage_samples"  , Counter . int . Stats.numByteUsageSamples)
+     , ("rts.gc.cumulative_bytes_used"    , Counter . int . Stats.cumulativeBytesUsed)
+     , ("rts.gc.bytes_copied"             , Counter . int . Stats.bytesCopied)
+     , ("rts.gc.mutator_cpu_ms"           , Counter . toMs . Stats.mutatorCpuSeconds)
+     , ("rts.gc.mutator_wall_ms"          , Counter . toMs . Stats.mutatorWallSeconds)
+     , ("rts.gc.gc_cpu_ms"                , Counter . toMs . Stats.gcCpuSeconds)
+     , ("rts.gc.gc_wall_ms"               , Counter . toMs . Stats.gcWallSeconds)
+     , ("rts.gc.cpu_ms"                   , Counter . toMs . Stats.cpuSeconds)
+     , ("rts.gc.wall_ms"                  , Counter . toMs . Stats.wallSeconds)
+     , ("rts.gc.max_bytes_used"           , Gauge . int . Stats.maxBytesUsed)
+     , ("rts.gc.current_bytes_used"       , Gauge . int . Stats.currentBytesUsed)
+     , ("rts.gc.current_bytes_slop"       , Gauge . int . Stats.currentBytesSlop)
+     , ("rts.gc.max_bytes_slop"           , Gauge . int . Stats.maxBytesSlop)
+     , ("rts.gc.peak_megabytes_allocated" , Gauge . int . Stats.peakMegabytesAllocated)
+     , ("rts.gc.par_tot_bytes_copied"     , Gauge . int . gcParTotBytesCopied)
+     , ("rts.gc.par_avg_bytes_copied"     , Gauge . int . gcParTotBytesCopied)
+     , ("rts.gc.par_max_bytes_copied"     , Gauge . int . Stats.parMaxBytesCopied)
+     ])
+    getGcStats
+    store
   where
     int = fromIntegral
 
