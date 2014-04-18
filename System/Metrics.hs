@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 -- | A module for defining metrics that can be monitored.
@@ -112,17 +111,18 @@ import qualified System.Remote.Label.Internal as Label
 -- | A mutable metric store.
 newtype Store = Store { storeState :: IORef State }
 
-type CallbackId = Int
+type GroupId = Int
 
+-- | The 'Store' state.
 data State = State
-     { stateMetrics   :: !(M.HashMap T.Text (Either MetricSampler CallbackId))
-     , stateCallbacks :: !(IM.IntMap CallbackSampler)
-     , stateNextId    :: {-# UNPACK #-} !Int
+     { stateMetrics :: !(M.HashMap T.Text (Either MetricSampler GroupId))
+     , stateGroups  :: !(IM.IntMap GroupSampler)
+     , stateNextId  :: {-# UNPACK #-} !Int
      }
 
-data CallbackSampler = forall a. CallbackSampler
-     { metricCallback :: IO a
-     , metricGetters  :: M.HashMap T.Text (a -> Value)
+data GroupSampler = forall a. GroupSampler
+     { groupSampleAction   :: !(IO a)
+     , groupSamplerMetrics :: !(M.HashMap T.Text (a -> Value))
      }
 
 -- TODO: Rename this to Metric and Metric to SampledMetric.
@@ -187,14 +187,12 @@ register name sample store = do
                      in (state', ())
             True  -> alreadyInUseError name
 
+-- | Raise an exception indicating that the metric name is already in
+-- use.
 alreadyInUseError :: T.Text -> a
 alreadyInUseError name =
     error $ "The name \"" ++ show name ++ "\" is already taken " ++
     "by a metric."
-
--- TODO: We might want to have the callback return the values sampled.
--- That way we don't need to allocate and maintain 'IORef's for all
--- metrics sampled through a callback (e.g. GC metrics).
 
 -- | Register a action that will be executed any time one of the
 -- metrics computed from the value it returns needs to be sampled.
@@ -247,15 +245,15 @@ registerMetricGroup getters cb store = do
         let !state' = State
                 { stateMetrics = M.foldlWithKey' (register_ stateNextId)
                                  stateMetrics getters
-                , stateCallbacks = IM.insert stateNextId
-                                   (CallbackSampler cb getters)
-                                   stateCallbacks
-                , stateNextId    = stateNextId + 1
+                , stateGroups  = IM.insert stateNextId
+                                 (GroupSampler cb getters)
+                                 stateGroups
+                , stateNextId  = stateNextId + 1
                 }
        in (state', ())
   where
-    register_ cbId metrics name _ = case M.lookup name metrics of
-        Nothing -> M.insert name (Right cbId) metrics
+    register_ groupId metrics name _ = case M.lookup name metrics of
+        Nothing -> M.insert name (Right groupId) metrics
         Just _  -> alreadyInUseError name
 
 ------------------------------------------------------------------------
@@ -395,6 +393,7 @@ registerGcStats store =
   where
     int = fromIntegral
 
+-- | Get GC statistics.
 getGcStats :: IO Stats.GCStats
 #if MIN_VERSION_base(4,6,0)
 getGcStats = do
@@ -403,6 +402,7 @@ getGcStats = do
         then Stats.getGCStats
         else return emptyGCStats
 
+-- | Empty GC statistics, as if the application hasn't started yet.
 emptyGCStats :: Stats.GCStats
 emptyGCStats = Stats.GCStats
     { bytesAllocated         = 0
@@ -457,8 +457,8 @@ sampleAll store = do
     time <- getTimeMs
     state <- readIORef (storeState store)
     let metrics = stateMetrics state
-        callbacks = stateCallbacks state
-    cbSample <- sampleCallbacks $ IM.elems callbacks
+        groups = stateGroups state
+    cbSample <- sampleGroups $ IM.elems groups
     sample <- readAllRefs metrics
     let allSamples = sample ++ cbSample ++
                      [("server_timestamp_ms", Counter time)]
@@ -467,13 +467,14 @@ sampleAll store = do
     getTimeMs :: IO Int
     getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
 
-sampleCallbacks :: [CallbackSampler] -> IO [(T.Text, Value)]
-sampleCallbacks cbSamplers = concat `fmap` sequence (map runOne cbSamplers)
+-- | Sample all metric groups.
+sampleGroups :: [GroupSampler] -> IO [(T.Text, Value)]
+sampleGroups cbSamplers = concat `fmap` sequence (map runOne cbSamplers)
   where
-    runOne :: CallbackSampler -> IO [(T.Text, Value)]
-    runOne CallbackSampler{..} = do
-        a <- metricCallback
-        return $! map (\ (n, f) -> (n, f a)) (M.toList metricGetters)
+    runOne :: GroupSampler -> IO [(T.Text, Value)]
+    runOne GroupSampler{..} = do
+        a <- groupSampleAction
+        return $! map (\ (n, f) -> (n, f a)) (M.toList groupSamplerMetrics)
 
 -- | The value of a sampled metric.
 data Value = Counter {-# UNPACK #-} !Int
@@ -488,10 +489,9 @@ sampleOne (LabelS m)   = Label <$> m
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: M.HashMap T.Text (Either MetricSampler CallbackId)
+readAllRefs :: M.HashMap T.Text (Either MetricSampler GroupId)
             -> IO [(T.Text, Value)]
 readAllRefs m = do
     forM ([(name, ref) | (name, Left ref) <- M.toList m]) $ \ (name, ref) -> do
         val <- sampleOne ref
         return (name, val)
-{-# INLINABLE readAllRefs #-}
