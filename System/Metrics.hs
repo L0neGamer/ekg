@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -32,7 +33,6 @@ import Control.Monad (forM)
 import Data.Int (Int64)
 import qualified Data.IntMap.Strict as IM
 import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
-import qualified Data.List as List
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -52,15 +52,17 @@ import qualified System.Remote.Label.Internal as Label
 -- | A mutable metric store.
 newtype Store = Store { storeState :: IORef State }
 
+type CallbackId = Int
+
 data State = State
-     { stateMetrics   :: !(M.HashMap T.Text MetricRef)
-     , stateCallbacks :: !(IM.IntMap (IO ()))
+     { stateMetrics   :: !(M.HashMap T.Text (Either MetricSampler CallbackId))
+     , stateCallbacks :: !(IM.IntMap CallbackSampler)
      , stateNextId    :: {-# UNPACK #-} !Int
      }
 
-data MetricRef = MetricRef
-     { metricSample   :: !MetricSampler
-     , metricCallback :: !(Maybe Int)
+data CallbackSampler = forall a. CallbackSampler
+     { metricCallback :: IO a
+     , metricGetters  :: M.HashMap T.Text (a -> Metric)
      }
 
 -- TODO: Rename this to Metric and Metric to SampledMetric.
@@ -117,7 +119,7 @@ register name sample store = do
         case M.member name stateMetrics of
             False -> let !state' = state {
                                stateMetrics = M.insert name
-                                              (MetricRef sample Nothing)
+                                              (Left sample)
                                               stateMetrics
                              }
                      in (state', ())
@@ -150,33 +152,34 @@ alreadyInUseError name =
 --
 -- Example usage:
 --
+-- > import qualified Data.HashMap.Strict as M
+-- >
+-- > getGCStats :: IO GCStats
+-- >
 -- > main = do
 -- >     store <- newStore
--- >     temp <- newIORef 0
--- >     registerGauge "cpu_temp" (readIORef temp) store
--- >     registerCallback ["cpu_temp"] (getCpuTemp >>= writeIORef temp) store
-registerCallback :: [T.Text]  -- ^ Names of metrics updated by this callback
-                 -> IO ()     -- ^ The callback
-                 -> Store     -- ^ The metric store
-                 -> IO ()
-registerCallback names cb store = do
+-- >     registerCallback (M.fromList ["numGcs"], numGcs) getGCStats store
+registerCallback
+    :: M.HashMap T.Text (a -> Metric)  -- ^ Metric names and
+                                       -- projection functions.
+    -> IO a                            -- ^ The metrics sampler
+    -> Store                           -- ^ The metric store
+    -> IO ()
+registerCallback getters cb store = do
     atomicModifyIORef (storeState store) $ \ State{..} ->
         let !state' = State
-                { stateMetrics = List.foldl' (register_ stateNextId)
-                                 stateMetrics names
-                , stateCallbacks = IM.insert stateNextId cb stateCallbacks
+                { stateMetrics = M.foldlWithKey' (register_ stateNextId)
+                                 stateMetrics getters
+                , stateCallbacks = IM.insert stateNextId
+                                   (CallbackSampler cb getters)
+                                   stateCallbacks
                 , stateNextId    = stateNextId + 1
                 }
        in (state', ())
   where
-    register_ cbId metrics name = case M.lookup name metrics of
-        Nothing ->
-            error $ "No metric named \"" ++ T.unpack name ++ "\"."
-        Just (MetricRef _ (Just _)) ->
-            error $ "A callback has already been associated with metric \"" ++
-            T.unpack name ++ "\""
-        Just (MetricRef sampler _) ->
-            M.insert name (MetricRef sampler (Just cbId)) metrics
+    register_ cbId metrics name _ = case M.lookup name metrics of
+        Nothing -> M.insert name (Right cbId) metrics
+        Just _  -> alreadyInUseError name
 
 -- | Create and register a zero-initialized counter.
 getCounter :: T.Text  -- ^ Counter name
@@ -228,15 +231,23 @@ sampleAll store = do
     state <- readIORef (storeState store)
     let metrics = stateMetrics state
         callbacks = stateCallbacks state
-    sequence_ $ IM.elems callbacks
+    cbSample <- sampleCallbacks $ IM.elems callbacks
     sample <- readAllRefs metrics
     gcSample <- sampleGcStats <$> getGcStats
-    let allSamples = sample ++ gcSample ++
+    let allSamples = sample ++ cbSample ++ gcSample ++
                      [("server_timestamp_ms", Counter time)]
     return $! M.fromList allSamples
   where
     getTimeMs :: IO Int
     getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
+
+sampleCallbacks :: [CallbackSampler] -> IO [(T.Text, Metric)]
+sampleCallbacks cbSamplers = concat `fmap` sequence (map runOne cbSamplers)
+  where
+    runOne :: CallbackSampler -> IO [(T.Text, Metric)]
+    runOne CallbackSampler{..} = do
+        a <- metricCallback
+        return $! map (\ (n, f) -> (n, f a)) (M.toList metricGetters)
 
 -- | The kind of metrics that can be sampled.
 data Metric = Counter {-# UNPACK #-} !Int
@@ -251,10 +262,11 @@ sampleOne (LabelS m)   = Label <$> m
 
 -- | Get a snapshot of all values.  Note that we're not guaranteed to
 -- see a consistent snapshot of the whole map.
-readAllRefs :: M.HashMap T.Text MetricRef -> IO [(T.Text, Metric)]
+readAllRefs :: M.HashMap T.Text (Either MetricSampler CallbackId)
+            -> IO [(T.Text, Metric)]
 readAllRefs m = do
-    forM (M.toList m) $ \ (name, ref) -> do
-        val <- sampleOne (metricSample ref)
+    forM ([(name, ref) | (name, Left ref) <- M.toList m]) $ \ (name, ref) -> do
+        val <- sampleOne ref
         return (name, val)
 {-# INLINABLE readAllRefs #-}
 
