@@ -236,7 +236,7 @@ forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> IO Server
 forkServer host port = do
     store <- Metrics.newStore
-    Metrics.registerGCStats store
+    Metrics.registerGcStats store
     tid <- forkIO $ startServer store host port
     return $! Server tid store
 
