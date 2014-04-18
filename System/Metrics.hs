@@ -158,7 +158,7 @@ alreadyInUseError name =
 -- >
 -- > main = do
 -- >     store <- newStore
--- >     registerCallback (M.fromList ["numGcs"], numGcs) getGCStats store
+-- >     registerCallback (M.fromList [("numGcs", numGcs)]) getGCStats store
 registerCallback
     :: M.HashMap T.Text (a -> Metric)  -- ^ Metric names and
                                        -- projection functions.
