@@ -24,14 +24,12 @@ cabal-version:       >= 1.8
 
 library
   exposed-modules:
-    System.Metrics
     System.Remote.Counter
     System.Remote.Gauge
     System.Remote.Label
     System.Remote.Monitoring
 
   other-modules:
-    Data.Atomic
     Paths_ekg
     System.Remote.Json
     System.Remote.Monitoring.Statsd
@@ -42,6 +40,7 @@ library
     base >= 4.5 && < 5,
     bytestring < 1.0,
     containers >= 0.5 && < 0.6,
+    ekg-core >= 0.1 && < 0.2,
     filepath < 1.4,
     network < 2.5,
     snap-core < 0.10,
@@ -52,7 +51,6 @@ library
     unordered-containers < 0.3
 
   ghc-options: -Wall
-  c-sources: cbits/atomic.c
 
 benchmark benchmarks
   hs-source-dirs: benchmarks
