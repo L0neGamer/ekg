@@ -6,14 +6,26 @@
 module System.Remote.Label
     (
       Label
+    , new
+    , read
     , set
     , modify
     ) where
 
-import Data.IORef (atomicModifyIORef)
+import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
 import qualified Data.Text as T
+import Prelude hiding (read)
 
-import System.Remote.Label.Internal
+-- | A mutable, text-valued label.
+newtype Label = C { unC :: IORef T.Text }
+
+-- | Create a new empty label.
+new :: IO Label
+new = C `fmap` newIORef T.empty
+
+-- | Get the current value of the label.
+read :: Label -> IO T.Text
+read = readIORef . unC
 
 -- | Set the label to the given value.
 set :: Label -> T.Text -> IO ()

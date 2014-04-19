@@ -78,11 +78,11 @@ import qualified GHC.Stats as Stats
 import Prelude hiding (read)
 
 import System.Remote.Counter (Counter)
-import qualified System.Remote.Counter.Internal as Counter
+import qualified System.Remote.Counter as Counter
 import System.Remote.Gauge (Gauge)
-import qualified System.Remote.Gauge.Internal as Gauge
+import qualified System.Remote.Gauge as Gauge
 import System.Remote.Label (Label)
-import qualified System.Remote.Label.Internal as Label
+import qualified System.Remote.Label as Label
 
 -- $naming
 -- Compound metric names should be separated using underscores.

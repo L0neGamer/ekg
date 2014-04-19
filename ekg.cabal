@@ -34,9 +34,6 @@ library
     Data.Atomic
     Paths_ekg
     System.Remote.Json
-    System.Remote.Counter.Internal
-    System.Remote.Gauge.Internal
-    System.Remote.Label.Internal
     System.Remote.Monitoring.Statsd
     System.Remote.Snap
 

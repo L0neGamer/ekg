@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 -- | This module defines a type for mutable, integer-valued gauges.
 -- Gauges are variable values and can be used to track e.g. the
 -- current number of concurrent connections. All operations on gauges
@@ -6,6 +5,8 @@
 module System.Remote.Gauge
     (
       Gauge
+    , new
+    , read
     , inc
     , dec
     , add
@@ -13,10 +14,19 @@ module System.Remote.Gauge
     , set
     ) where
 
-import Prelude hiding (subtract)
-
 import qualified Data.Atomic as Atomic
-import System.Remote.Gauge.Internal
+import Prelude hiding (subtract, read)
+
+-- | A mutable, integer-valued gauge.
+newtype Gauge = C { unC :: Atomic.Atomic }
+
+-- | Create a new, zero initialized, gauge.
+new :: IO Gauge
+new = C `fmap` Atomic.new 0
+
+-- | Get the current value of the gauge.
+read :: Gauge -> IO Int
+read = Atomic.read . unC
 
 -- | Increase the gauge by one.
 inc :: Gauge -> IO ()
