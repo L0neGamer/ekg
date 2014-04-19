@@ -6,6 +6,7 @@ description:
   It provides a simple way to integrate a monitoring server into any
   application.
 homepage:            https://github.com/tibbe/ekg
+bug-reports:         https://github.com/tibbe/ekg/issues
 license:             BSD3
 license-file:        LICENSE
 author:              Johan Tibell

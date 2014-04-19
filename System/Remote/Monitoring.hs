@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- | This module provides remote monitoring of a running process over
 -- HTTP.  It can be used to run an HTTP server that provides both a
 -- web-based user interface and a machine-readable API (e.g. JSON.)
@@ -41,6 +43,7 @@ module System.Remote.Monitoring
 import Control.Concurrent (ThreadId, forkIO)
 import qualified Data.ByteString as S
 import qualified Data.Text as T
+import Data.Time.Clock.POSIX (getPOSIXTime)
 import Prelude hiding (read)
 
 import qualified System.Metrics as Metrics
@@ -237,8 +240,12 @@ forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
 forkServer host port = do
     store <- Metrics.newStore
     Metrics.registerGcStats store
+    Metrics.registerCounter "server_timestamp_ms" getTimeMs store
     tid <- forkIO $ startServer store host port
     return $! Server tid store
+  where
+    getTimeMs :: IO Int
+    getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
 
 ------------------------------------------------------------------------
 -- * Types
