@@ -33,7 +33,6 @@ library
   other-modules:
     Paths_ekg
     System.Remote.Json
-    System.Remote.Monitoring.Statsd
     System.Remote.Snap
 
   build-depends:
