@@ -7,6 +7,8 @@ module Main where
 import Control.Concurrent
 import Control.Exception
 import Data.List
+import Data.Time.Clock.POSIX (getPOSIXTime)
+import qualified System.Remote.Event as Event
 import qualified System.Remote.Counter as Counter
 import qualified System.Remote.Label as Label
 import System.Remote.Monitoring
@@ -23,10 +25,22 @@ main = do
     handle <- forkServer "localhost" 8000
     counter <- getCounter "iterations" handle
     label <- getLabel "args" handle
+    event <- getEvent "runtime" handle
     Label.set label "some text string"
     let loop n = do
-            evaluate $ mean [1..n]
+            t <- timed $ evaluate $ mean [1..n]
+            Event.add event t
             threadDelay 2000
             Counter.inc counter
             loop n
     loop 1000000
+
+timed :: IO a -> IO Double
+timed m = do
+    start <- getTime
+    m
+    end <- getTime
+    return $! end - start
+
+getTime :: IO Double
+getTime = realToFrac `fmap` getPOSIXTime

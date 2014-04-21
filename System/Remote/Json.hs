@@ -10,10 +10,12 @@ import qualified Data.Aeson.Encode as A
 import qualified Data.Aeson.Types as A
 import qualified Data.ByteString.Lazy as L
 import qualified Data.HashMap.Strict as M
+import Data.Int (Int64)
 import qualified Data.Text as T
 import Prelude hiding (read)
 
 import System.Metrics
+import qualified System.Metrics.Distribution as Distribution
 
 ------------------------------------------------------------------------
 -- * JSON serialization
@@ -22,11 +24,13 @@ data MetricType =
       CounterType
     | GaugeType
     | LabelType
+    | DistributionType
 
 metricType :: MetricType -> T.Text
-metricType CounterType = "c"
-metricType GaugeType   = "g"
-metricType LabelType   = "l"
+metricType CounterType      = "c"
+metricType GaugeType        = "g"
+metricType LabelType        = "l"
+metricType DistributionType = "d"
 
 -- | Encode metrics as nested JSON objects. Each "." in the metric
 -- name introduces a new level of nesting. For example, the metrics
@@ -34,8 +38,14 @@ metricType LabelType   = "l"
 --
 -- > {
 -- >   "foo": {
--- >     "bar": 10,
--- >     "baz": "label"
+-- >     "bar": {
+-- >       "type:", "c",
+-- >       "val": 10
+-- >     },
+-- >     "baz": {
+-- >       "type": "l",
+-- >       "val": "label"
+-- >     }
 -- >   }
 -- > }
 --
@@ -58,24 +68,29 @@ encodeAll metrics =
     go v _ _                        = typeMismatch "Object" v
 
 buildOneM :: Value -> A.Value
-buildOneM (Counter n) = goOne n CounterType
-buildOneM (Gauge n)   = goOne n GaugeType
-buildOneM (Label l)   = goOne l LabelType
+buildOneM (Counter n)      = goOne n CounterType
+buildOneM (Gauge n)        = goOne n GaugeType
+buildOneM (Label l)        = goOne l LabelType
+buildOneM (Distribution l) = goDistribution l
+
+goDistribution :: Distribution.Stats -> A.Value
+goDistribution stats = A.object [
+    ("mean", A.toJSON $! Distribution.mean stats),
+    ("variance", A.toJSON $! Distribution.variance stats),
+    ("count", A.toJSON $! Distribution.count stats),
+    ("sum", A.toJSON $! Distribution.sum stats),
+    ("min", A.toJSON $! Distribution.min stats),
+    ("max", A.toJSON $! Distribution.max stats),
+    ("type", A.toJSON (metricType DistributionType))]
 
 goOne :: A.ToJSON a => a -> MetricType -> A.Value
 goOne val ty = A.object [
     ("val", A.toJSON val), ("type", A.toJSON (metricType ty))]
+{-# SPECIALIZE goOne :: Int64 -> MetricType -> A.Value #-}
+{-# SPECIALIZE goOne :: T.Text -> MetricType -> A.Value #-}
 
 encodeOne :: Value -> L.ByteString
-encodeOne (Counter n) = encodeMetric n CounterType
-encodeOne (Gauge n)   = encodeMetric n GaugeType
-encodeOne (Label l)   = encodeMetric l LabelType
-
-encodeMetric :: A.ToJSON a => a -> MetricType -> L.ByteString
-encodeMetric val ty = A.encode $ A.object [
-    ("val", A.toJSON val), ("type", A.toJSON (metricType ty))]
-{-# SPECIALIZE encodeMetric :: Int -> MetricType -> L.ByteString #-}
-{-# SPECIALIZE encodeMetric :: T.Text -> MetricType -> L.ByteString #-}
+encodeOne = A.encode . buildOneM
 
 typeMismatch :: String   -- ^ The expected type
              -> A.Value  -- ^ The actual value encountered

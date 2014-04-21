@@ -228,6 +228,7 @@ $(document).ready(function () {
     function addMetrics(table) {
         var COUNTER = "c";
         var GAUGE = "g";
+        var DISTRIBUTION = "d";
         var metrics = {};
 
         function makeDataGetter(key) {
@@ -246,7 +247,9 @@ $(document).ready(function () {
                     });
                     return 1000 * (value.val - prev_value.val) /
                         (time - prev_time);
-                } else {  // value.type === GAUGE
+                } else if (value.type === DISTRIBUTION) {
+                    return value.mean;
+                } else {  // value.type === GAUGE || value.type === LABEL
                     return value.val;
                 }
             }
@@ -289,7 +292,12 @@ $(document).ready(function () {
                 });
             }
             if (!paused) {
-                var val = value.val;
+                if (value.type === DISTRIBUTION) {
+                    var val = value.mean.toPrecision(8) + '\n+/-' +
+                        Math.sqrt(value.variance).toPrecision(8) + ' sd';
+                } else {  // COUNTER, GAUGE, LABEL
+                    var val = value.val;
+                }
                 if ($.inArray(value.type, [COUNTER, GAUGE]) !== -1) {
                     val = commaify(val);
                 }
@@ -301,7 +309,7 @@ $(document).ready(function () {
         function onDataReceived(stats, time) {
             function build(prefix, obj) {
                 $.each(obj, function (suffix, value) {
-                    if (value.hasOwnProperty("val")) {
+                    if (value.hasOwnProperty("type")) {
                         var key = prefix + suffix;
                         addElem(key, value);
                     } else {

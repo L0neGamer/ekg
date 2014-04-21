@@ -26,6 +26,7 @@ cabal-version:       >= 1.8
 library
   exposed-modules:
     System.Remote.Counter
+    System.Remote.Distribution
     System.Remote.Gauge
     System.Remote.Label
     System.Remote.Monitoring

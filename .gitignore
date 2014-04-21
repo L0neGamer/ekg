@@ -3,9 +3,10 @@
 *.p_hi
 *.prof
 *.tix
+.DS_Store
+.cabal-sandbox/
 .hpc/
 /dist/*
-.cabal-sandbox/
-.DS_Store
 cabal.config
 cabal.sandbox.config
+examples/Basic

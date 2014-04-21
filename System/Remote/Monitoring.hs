@@ -40,6 +40,7 @@ module System.Remote.Monitoring
     , getCounter
     , getGauge
     , getLabel
+    , getDistribution
     ) where
 
 import Control.Concurrent (ThreadId, forkIO)
@@ -51,6 +52,7 @@ import Prelude hiding (read)
 
 import qualified System.Metrics as Metrics
 import System.Remote.Counter (Counter)
+import System.Remote.Distribution (Distribution)
 import System.Remote.Gauge (Gauge)
 import System.Remote.Label (Label)
 import System.Remote.Snap
@@ -237,3 +239,12 @@ getLabel :: T.Text  -- ^ Label name
          -> Server  -- ^ Server that will serve the label
          -> IO Label
 getLabel name server = Metrics.createLabel name (serverMetricStore server)
+
+-- | Return a new distribution associated with the given name and
+-- server. Multiple calls to 'getDistribution' with the same arguments
+-- will result in an 'error'.
+getDistribution :: T.Text  -- ^ Distribution name
+                -> Server  -- ^ Server that will serve the distribution
+                -> IO Distribution
+getDistribution name server =
+    Metrics.createDistribution name (serverMetricStore server)
