@@ -44,6 +44,7 @@ module System.Remote.Monitoring
 
 import Control.Concurrent (ThreadId, forkIO)
 import qualified Data.ByteString as S
+import Data.Int (Int64)
 import qualified Data.Text as T
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Prelude hiding (read)
@@ -207,7 +208,7 @@ forkServerWith store host port = do
     tid <- forkIO $ startServer store host port
     return $! Server tid store
   where
-    getTimeMs :: IO Int
+    getTimeMs :: IO Int64
     getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
 
 ------------------------------------------------------------------------
