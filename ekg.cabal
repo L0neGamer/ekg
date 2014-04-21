@@ -52,17 +52,6 @@ library
 
   ghc-options: -Wall
 
-benchmark benchmarks
-  hs-source-dirs: benchmarks
-  main-is: Benchmarks.hs
-  type: exitcode-stdio-1.0
-
-  build-depends:
-    base,
-    ekg
-
-  ghc-options: -O2 -threaded -Wall
-
 source-repository head
   type:     git
   location: https://github.com/tibbe/ekg.git
