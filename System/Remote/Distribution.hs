@@ -8,16 +8,6 @@ module System.Remote.Distribution
     , Distribution.new
     , Distribution.add
     , Distribution.addN
-    , Distribution.read
-
-      -- * Gathered statistics
-    , Distribution.Stats
-    , Distribution.mean
-    , Distribution.variance
-    , Distribution.count
-    , Distribution.sum
-    , Distribution.min
-    , Distribution.max
     ) where
 
 import qualified System.Metrics.Distribution as Distribution
