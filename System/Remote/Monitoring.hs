@@ -35,7 +35,7 @@ module System.Remote.Monitoring
     , forkServer
     , forkServerWith
 
-      -- * User-defined counters, gauges, and labels
+      -- * Defining metrics
       -- $userdefined
     , getCounter
     , getGauge
@@ -59,9 +59,9 @@ import System.Remote.Snap
 
 -- $configuration
 --
--- To use this module you must first enable GC statistics collection
--- in the run-time system.  To enable GC statistics collection, either
--- run your program with
+-- To make full use out of this this module you must first enable GC
+-- statistics collection in the run-time system. To enable GC
+-- statistics collection, either run your program with
 --
 -- > +RTS -T
 --
@@ -89,26 +89,34 @@ import System.Remote.Snap
 --
 -- The following resources (i.e. URLs) are available:
 --
--- [\/] JSON object containing all counters, gauges and labels.
--- Counters, gauges, and labels are stored as nested objects under the
--- @counters@, @gauges@, and @labels@ attributes, respectively.
--- Content types: \"text\/html\" (default), \"application\/json\"
+-- [\/] JSON object containing all metrics. Metrics are stored as
+-- nested objects, with one new object layer per \".\" in the metric
+-- name (see example below.) Content types: \"text\/html\" (default),
+-- \"application\/json\"
 --
 -- [\/\<namespace\>/\<metric\>] JSON object for a single metric. The
--- metric name is created by converting all \/ to \".\". Example:
+-- metric name is created by converting all \"\/\" to \".\". Example:
 -- \"\/foo\/bar\" corresponds to the metric \"foo.bar\". Content
 -- types: \"application\/json\"
 --
--- Each metric is returned as an object containing a @val@ and a
--- @type@ type. The @val@ field contains the actual value (i.e. an
--- integer or a string) and the @type@ field specifies the metric
--- type. Available types are:
+-- Each metric is returned as an object containing a @type@ field.  Available types
+-- are:
 --
---  * \"c\" - 'System.Counter'
+--  * \"c\" - 'Counter'
 --
---  * \"g\" - 'System.Gauge'
+--  * \"g\" - 'Gauge'
 --
---  * \"l\" - 'System.Label'
+--  * \"l\" - 'Label'
+--
+--  * \"d\" - 'Distribution'
+--
+-- In addition to the @type@ field, there are metric specific fields:
+--
+--  * Counters, gauges, and labels: the @val@ field contains the
+--    actual value (i.e. an integer or a string).
+--
+--  * Distributions: the @mean@, @variance@, @count@, @sum@, @min@,
+--    and @max@ fields contain their statistical equivalents.
 --
 -- Example of a response containing the metrics \"myapp.visitors\" and
 -- \"myapp.args\":
@@ -127,19 +135,20 @@ import System.Remote.Snap
 -- > }
 
 -- $userdefined
--- The monitoring server can store and serve user-defined,
--- integer-valued counters and gauges, and string-valued labels.  A
+-- The monitoring server can store and serve integer-valued counters
+-- and gauges, string-valued labels, and statistical distributions. A
 -- counter is a monotonically increasing value (e.g. TCP connections
--- established since program start.) A gauge is a variable value
--- (e.g. the current number of concurrent connections.) A label is a
+-- established since program start.) A gauge is a variable value (e.g.
+-- the current number of concurrent connections.) A label is a
 -- free-form string value (e.g. exporting the command line arguments
--- or host name.)  Each counter, gauge, and label is associated with a
+-- or host name.) A distribution is a static summary of events (e.g.
+-- processing time per request.) Each metric is associated with a
 -- name, which is used when it is displayed in the UI or returned in a
 -- JSON object.
 --
--- The counters, gauges, and labels share the same namespace so it's
--- not possible to create e.g. a counter and a gauge with the same.
--- Attempting to do so will result in an 'error'.
+-- Metrics share the same namespace so it's not possible to create
+-- e.g. a counter and a gauge with the same. Attempting to do so will
+-- result in an 'error'.
 --
 -- To create and use a counter, simply call 'getCounter' to create it
 -- and then call e.g. 'System.Remote.Counter.inc' or
@@ -155,7 +164,11 @@ import System.Remote.Snap
 --
 -- To create a gauge, use 'getGauge' instead of 'getCounter' and then
 -- call e.g. 'System.Remote.Gauge.set' or
--- 'System.Remote.Gauge.modify'.  Similar for labels.
+-- 'System.Remote.Gauge.modify'. Similar for the other metric types.
+--
+-- It's also possible to register metrics directly using the
+-- @System.Metrics@ module in the ekg-core package. This gives you a
+-- bit more control over how metric values are retrieved.
 
 ------------------------------------------------------------------------
 -- * The monitoring server
@@ -214,7 +227,7 @@ forkServerWith store host port = do
     getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
 
 ------------------------------------------------------------------------
--- * User-defined counters, gauges and labels
+-- * Defining metrics
 
 -- | Return a new, zero-initialized counter associated with the given
 -- name and server. Multiple calls to 'getCounter' with the same
