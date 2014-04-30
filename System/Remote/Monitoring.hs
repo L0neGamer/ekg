@@ -141,10 +141,10 @@ import System.Remote.Snap
 -- established since program start.) A gauge is a variable value (e.g.
 -- the current number of concurrent connections.) A label is a
 -- free-form string value (e.g. exporting the command line arguments
--- or host name.) A distribution is a static summary of events (e.g.
--- processing time per request.) Each metric is associated with a
--- name, which is used when it is displayed in the UI or returned in a
--- JSON object.
+-- or host name.) A distribution is a statistic summary of events
+-- (e.g. processing time per request.) Each metric is associated with
+-- a name, which is used when it is displayed in the UI or returned in
+-- a JSON object.
 --
 -- Metrics share the same namespace so it's not possible to create
 -- e.g. a counter and a gauge with the same. Attempting to do so will
@@ -210,9 +210,12 @@ forkServer host port = do
 -- [@ekg.server_time_ms@] The server time when the sample was taken,
 -- in milliseconds.
 --
--- Note that this function, unlike 'forkServer', doesn't add any other
--- predefined metrics. You will have to manually register any
--- additional metrics.
+-- Note that this function, unlike 'forkServer', doesn't register any
+-- other predefined metrics. This allows other libraries to create and
+-- provide a metric store for use with this library. If the metric
+-- store isn't created by you and the creator doesn't register the
+-- metrics registered by 'forkServer', you might want to register them
+-- yourself.
 forkServerWith :: Metrics.Store  -- ^ Metric store
                -> S.ByteString   -- ^ Host to listen on (e.g. \"localhost\")
                -> Int            -- ^ Port to listen on (e.g. 8000)
