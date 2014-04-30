@@ -51,8 +51,8 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import Prelude hiding (read)
 
 import qualified System.Metrics as Metrics
+import System.Metrics.Distribution (Distribution)
 import System.Remote.Counter (Counter)
-import System.Remote.Distribution (Distribution)
 import System.Remote.Gauge (Gauge)
 import System.Remote.Label (Label)
 import System.Remote.Snap
