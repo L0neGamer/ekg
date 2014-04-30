@@ -51,10 +51,10 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import Prelude hiding (read)
 
 import qualified System.Metrics as Metrics
-import System.Metrics.Distribution (Distribution)
-import System.Remote.Counter (Counter)
-import System.Remote.Gauge (Gauge)
-import System.Remote.Label (Label)
+import qualified System.Metrics.Counter as Counter
+import qualified System.Metrics.Distribution as Distribution
+import qualified System.Metrics.Gauge as Gauge
+import qualified System.Metrics.Label as Label
 import System.Remote.Snap
 
 -- $configuration
@@ -102,13 +102,13 @@ import System.Remote.Snap
 -- Each metric is returned as an object containing a @type@ field.  Available types
 -- are:
 --
---  * \"c\" - 'Counter'
+--  * \"c\" - 'Counter.Counter'
 --
---  * \"g\" - 'Gauge'
+--  * \"g\" - 'Gauge.Gauge'
 --
---  * \"l\" - 'Label'
+--  * \"l\" - 'Label.Label'
 --
---  * \"d\" - 'Distribution'
+--  * \"d\" - 'Distribution.Distribution'
 --
 -- In addition to the @type@ field, there are metric specific fields:
 --
@@ -151,8 +151,8 @@ import System.Remote.Snap
 -- result in an 'error'.
 --
 -- To create and use a counter, simply call 'getCounter' to create it
--- and then call e.g. 'System.Remote.Counter.inc' or
--- 'System.Remote.Counter.add' to modify its value.  Example:
+-- and then call e.g. 'Counter.inc' or 'Counter.add' to modify its
+-- value. Example:
 --
 -- > main = do
 -- >     handle <- forkServer "localhost" 8000
@@ -163,8 +163,8 @@ import System.Remote.Snap
 -- >     loop
 --
 -- To create a gauge, use 'getGauge' instead of 'getCounter' and then
--- call e.g. 'System.Remote.Gauge.set' or
--- 'System.Remote.Gauge.modify'. Similar for the other metric types.
+-- call e.g. 'System.Remote.Gauge.set'. Similar for the other metric
+-- types.
 --
 -- It's also possible to register metrics directly using the
 -- @System.Metrics@ module in the ekg-core package. This gives you a
@@ -234,7 +234,7 @@ forkServerWith store host port = do
 -- arguments will result in an 'error'.
 getCounter :: T.Text  -- ^ Counter name
            -> Server  -- ^ Server that will serve the counter
-           -> IO Counter
+           -> IO Counter.Counter
 getCounter name server = Metrics.createCounter name (serverMetricStore server)
 
 -- | Return a new, zero-initialized gauge associated with the given
@@ -242,7 +242,7 @@ getCounter name server = Metrics.createCounter name (serverMetricStore server)
 -- arguments will result in an 'error'.
 getGauge :: T.Text  -- ^ Gauge name
          -> Server  -- ^ Server that will serve the gauge
-         -> IO Gauge
+         -> IO Gauge.Gauge
 getGauge name server = Metrics.createGauge name (serverMetricStore server)
 
 -- | Return a new, empty label associated with the given name and
@@ -250,7 +250,7 @@ getGauge name server = Metrics.createGauge name (serverMetricStore server)
 -- result in an 'error'.
 getLabel :: T.Text  -- ^ Label name
          -> Server  -- ^ Server that will serve the label
-         -> IO Label
+         -> IO Label.Label
 getLabel name server = Metrics.createLabel name (serverMetricStore server)
 
 -- | Return a new distribution associated with the given name and
@@ -258,6 +258,6 @@ getLabel name server = Metrics.createLabel name (serverMetricStore server)
 -- will result in an 'error'.
 getDistribution :: T.Text  -- ^ Distribution name
                 -> Server  -- ^ Server that will serve the distribution
-                -> IO Distribution
+                -> IO Distribution.Distribution
 getDistribution name server =
     Metrics.createDistribution name (serverMetricStore server)

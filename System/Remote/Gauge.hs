@@ -1,3 +1,5 @@
+{-# OPTIONS_HADDOCK not-home #-}
+
 -- | This module defines a type for mutable, integer-valued gauges.
 -- Gauges are variable values and can be used to track e.g. the
 -- current number of concurrent connections. All operations on gauges

@@ -1,4 +1,5 @@
-{-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_HADDOCK not-home #-}
+
 -- | This module defines a type for mutable, string-valued labels.
 -- Labels are variable values and can be used to track e.g. the
 -- command line arguments or other free-form values. All operations on
