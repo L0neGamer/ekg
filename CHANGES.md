@@ -1,3 +1,23 @@
+## 0.4.0.0 (2014-05-01)
+
+ * Lots of the internals were split off into a new package, ekg-core.
+
+ * The `Gauge.modify` function was removed, as it can't be supported
+   by the new, more efficient implementation of gauges.
+
+ * The JSON API was significantly overhauled. The the Haddock
+   documentation for details.
+
+ * The metric store used internally by the server is now exposed and
+   can be used to share the same metric store between ekg and e.g.
+   ekg-statsd.
+
+ * It's now possible to provide a custom metric store to the server.
+
+ * The getDistribution function was added.
+
+ * The UI now has less special treatment for built-in metrics.
+
 ## 0.3.1.3 (2013-02-22)
 
  * Fixed security issue where ekg would always listen to all incoming
