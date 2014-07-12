@@ -1,3 +1,7 @@
+## 0.4.0.1 (2014-07-12)
+
+ * Fix JS bug which led to type errors for distribution metrics.
+
 ## 0.4.0.0 (2014-05-01)
 
  * Lots of the internals were split off into a new package, ekg-core.
