@@ -293,8 +293,13 @@ $(document).ready(function () {
             }
             if (!paused) {
                 if (value.type === DISTRIBUTION) {
-                    var val = value.mean.toPrecision(8) + '\n+/-' +
-                        Math.sqrt(value.variance).toPrecision(8) + ' sd';
+                    if (value.mean !== null) {
+                        var val = value.mean.toPrecision(8) + '\n+/-' +
+                            Math.sqrt(value.variance).toPrecision(8) + ' sd';
+                    }
+                    else {
+                        var val = "N/A";
+                    }
                 } else {  // COUNTER, GAUGE, LABEL
                     var val = value.val;
                 }
