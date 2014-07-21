@@ -20,6 +20,7 @@ data-files:          assets/index.html assets/monitor.js assets/monitor.css
                      assets/chart_line_add.png assets/cross.png
 extra-source-files:  LICENSE.icons LICENSE.javascript README.md
                      assets/jquery-1.6.4.js assets/jquery.flot.js
+                     assets/bootstrap-1.4.0.css
                      examples/Basic.hs CHANGES.md
 cabal-version:       >= 1.8
 
