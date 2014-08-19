@@ -1,3 +1,8 @@
+## 0.4.0.2 (2014-08-19)
+
+ * Support aeson-0.8 and transformers-0.4.
+ * Include original bootstrap source in tarball.
+
 ## 0.4.0.1 (2014-07-12)
 
  * Fix JS bug which led to type errors for distribution metrics.
