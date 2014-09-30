@@ -1,3 +1,7 @@
+## 0.4.0.3 (2014-09-30)
+
+ * Support text-1.2.
+
 ## 0.4.0.2 (2014-08-19)
 
  * Support aeson-0.8 and transformers-0.4.
