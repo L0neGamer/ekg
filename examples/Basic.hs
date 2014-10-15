@@ -8,9 +8,9 @@ import Control.Concurrent
 import Control.Exception
 import Data.List
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import qualified System.Remote.Event as Event
-import qualified System.Remote.Counter as Counter
-import qualified System.Remote.Label as Label
+import qualified System.Metrics.Distribution as Distribution
+import qualified System.Metrics.Counter as Counter
+import qualified System.Metrics.Label as Label
 import System.Remote.Monitoring
 
 -- 'sum' is using a non-strict lazy fold and will blow the stack.
@@ -25,11 +25,11 @@ main = do
     handle <- forkServer "localhost" 8000
     counter <- getCounter "iterations" handle
     label <- getLabel "args" handle
-    event <- getEvent "runtime" handle
+    event <- getDistribution "runtime" handle
     Label.set label "some text string"
     let loop n = do
             t <- timed $ evaluate $ mean [1..n]
-            Event.add event t
+            Distribution.add event t
             threadDelay 2000
             Counter.inc counter
             loop n
