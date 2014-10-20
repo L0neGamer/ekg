@@ -3,6 +3,8 @@
  * Fix bug where `forkServerWith` would register GC metrics, despite
    the docs saying that it doesn't.
 
+ * Fix example code that broke in the package split.
+
 ## 0.4.0.3 (2014-09-30)
 
  * Support text-1.2.
