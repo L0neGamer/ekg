@@ -195,6 +195,7 @@ forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> IO Server
 forkServer host port = do
     store <- Metrics.newStore
+    Metrics.registerGcMetrics store
     forkServerWith store host port
 
 -- | Start an HTTP server in a new thread.  The server replies to GET
@@ -221,7 +222,6 @@ forkServerWith :: Metrics.Store  -- ^ Metric store
                -> Int            -- ^ Port to listen on (e.g. 8000)
                -> IO Server
 forkServerWith store host port = do
-    Metrics.registerGcMetrics store
     Metrics.registerCounter "ekg.server_timestamp_ms" getTimeMs store
     tid <- forkIO $ startServer store host port
     return $! Server tid store
