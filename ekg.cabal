@@ -42,7 +42,7 @@ library
     bytestring < 1.0,
     ekg-core >= 0.1 && < 0.2,
     filepath < 1.4,
-    network < 2.6,
+    network < 2.7,
     snap-core < 0.10,
     snap-server < 0.10,
     text < 1.3,
