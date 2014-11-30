@@ -1,3 +1,9 @@
+## 0.4.0.5 (2014-11-30)
+
+ * Support network-2.6.
+
+ * Fix broken example code.
+
 ## 0.4.0.4 (2014-10-20)
 
  * Fix bug where `forkServerWith` would register GC metrics, despite
