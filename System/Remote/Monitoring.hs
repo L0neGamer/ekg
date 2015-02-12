@@ -56,6 +56,7 @@ import qualified System.Metrics.Distribution as Distribution
 import qualified System.Metrics.Gauge as Gauge
 import qualified System.Metrics.Label as Label
 import System.Remote.Snap
+import Network.Socket (withSocketsDo)
 
 -- $configuration
 --
@@ -223,7 +224,7 @@ forkServerWith :: Metrics.Store  -- ^ Metric store
                -> IO Server
 forkServerWith store host port = do
     Metrics.registerCounter "ekg.server_timestamp_ms" getTimeMs store
-    tid <- forkIO $ startServer store host port
+    tid <- withSocketsDo $ forkIO $ startServer store host port
     return $! Server tid store
   where
     getTimeMs :: IO Int64
