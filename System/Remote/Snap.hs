@@ -14,17 +14,19 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.List as List
 import qualified Data.Text.Encoding as T
 import Data.Word (Word8)
+import qualified Language.Javascript.Flot as Flot
+import qualified Language.Javascript.JQuery as JQuery
 import Network.Socket (NameInfoFlag(NI_NUMERICHOST), addrAddress, getAddrInfo,
                        getNameInfo)
 import Paths_ekg (getDataDir)
 import Prelude hiding (read)
 import Snap.Core (MonadSnap, Request, Snap, finishWith, getHeaders, getRequest,
-                  getResponse, method, Method(GET), modifyResponse, pass,
+                  getResponse, method, Method(GET), modifyResponse, pass, path,
                   rqPathInfo, setContentType, setResponseStatus,
                   writeLBS)
 import Snap.Http.Server (httpServe)
 import qualified Snap.Http.Server.Config as Config
-import Snap.Util.FileServe (serveDirectory)
+import Snap.Util.FileServe (serveDirectory, serveFile)
 import System.FilePath ((</>))
 
 import System.Metrics
@@ -69,12 +71,23 @@ startServer store host port = do
 -- | A handler that can be installed into an existing Snap application.
 monitor :: Store -> Snap ()
 monitor store = do
-    dataDir <- liftIO getDataDir
     (jsonHandler $ serve store)
-        <|> serveDirectory (dataDir </> "assets")
+        <|> assetsHandler
   where
     jsonHandler = wrapHandler "application/json"
     wrapHandler fmt handler = method GET $ format fmt $ handler
+
+-- | Handler for the static assets.
+assetsHandler :: Snap ()
+assetsHandler = do
+    jquery <- liftIO JQuery.file
+    jflot <- liftIO $ Flot.file Flot.Flot
+    jflotTime <- liftIO $ Flot.file Flot.FlotTime
+    dataDir <- liftIO getDataDir
+    (path "jquery.js" (serveFile jquery))
+        <|> (path "jquery.flot.js" (serveFile jflot))
+        <|> (path "jquery.flot.time.js" (serveFile jflotTime))
+        <|> serveDirectory (dataDir </> "assets")
 
 -- | The Accept header of the request.
 acceptHeader :: Request -> Maybe S.ByteString
