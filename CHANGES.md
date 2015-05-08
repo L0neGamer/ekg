@@ -1,3 +1,11 @@
+## 0.4.0.6 (2015-05-08)
+
+ * Support GHC 7.10.
+ 
+ * Re-raise exceptions in the server thread in the main thread.
+ 
+ * Improve Windows support.
+
 ## 0.4.0.5 (2014-11-30)
 
  * Support network-2.6.
