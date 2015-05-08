@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP, OverloadedStrings #-}
 
 -- | This module provides remote monitoring of a running process over
 -- HTTP.  It can be used to run an HTTP server that provides both a
@@ -43,7 +43,7 @@ module System.Remote.Monitoring
     , getDistribution
     ) where
 
-import Control.Concurrent (ThreadId, forkIO)
+import Control.Concurrent (ThreadId, myThreadId, throwTo)
 import qualified Data.ByteString as S
 import Data.Int (Int64)
 import qualified Data.Text as T
@@ -57,6 +57,13 @@ import qualified System.Metrics.Gauge as Gauge
 import qualified System.Metrics.Label as Label
 import System.Remote.Snap
 import Network.Socket (withSocketsDo)
+
+#if __GLASGOW_HASKELL__ >= 706
+import Control.Concurrent (forkFinally)
+#else
+import Control.Concurrent (forkIO)
+import Control.Exception (SomeException, mask, try)
+#endif
 
 -- $configuration
 --
@@ -224,7 +231,11 @@ forkServerWith :: Metrics.Store  -- ^ Metric store
                -> IO Server
 forkServerWith store host port = do
     Metrics.registerCounter "ekg.server_timestamp_ms" getTimeMs store
-    tid <- withSocketsDo $ forkIO $ startServer store host port
+    me <- myThreadId
+    tid <- withSocketsDo $ forkFinally (startServer store host port) $ \ r ->
+        case r of
+            Left e  -> throwTo me e
+            Right _ -> return ()
     return $! Server tid store
   where
     getTimeMs :: IO Int64
@@ -265,3 +276,13 @@ getDistribution :: T.Text  -- ^ Distribution name
                 -> IO Distribution.Distribution
 getDistribution name server =
     Metrics.createDistribution name (serverMetricStore server)
+
+------------------------------------------------------------------------
+-- Backwards compatibility shims
+
+#if __GLASGOW_HASKELL__ < 706
+forkFinally :: IO a -> (Either SomeException a -> IO ()) -> IO ThreadId
+forkFinally action and_then =
+  mask $ \restore ->
+    forkIO $ try (restore action) >>= and_then
+#endif
