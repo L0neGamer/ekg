@@ -211,7 +211,7 @@ forkServer host port = do
 -- either a numeric network address (dotted quad for IPv4,
 -- colon-separated hex for IPv6) or a hostname (e.g. \"localhost\".)
 -- The client can control the Content-Type used in responses by
--- setting the Accept header.  At the moment three content types are
+-- setting the Accept header.  At the moment two content types are
 -- available: \"application\/json\" and \"text\/html\".
 --
 -- Registers the following counter, used by the UI:
