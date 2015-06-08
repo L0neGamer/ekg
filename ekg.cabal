@@ -27,13 +27,15 @@ tested-with:         GHC == 8.0.1, GHC == 7.10.1, GHC == 7.8.4, GHC == 7.6.3
 
 library
   exposed-modules:
-    Paths_ekg
     System.Remote.Counter
     System.Remote.Gauge
     System.Remote.Json
     System.Remote.Label
     System.Remote.Monitoring
     System.Remote.Snap
+
+  other-modules:
+    Paths_ekg
 
   build-depends:
     aeson < 0.12,

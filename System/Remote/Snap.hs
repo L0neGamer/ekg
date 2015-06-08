@@ -2,6 +2,12 @@
 
 module System.Remote.Snap
     ( startServer
+    , getNumericHostAddress
+    , monitor
+    , acceptHeader
+    , format
+    , serve
+    , parseHttpAccept
     ) where
 
 import Control.Applicative ((<$>), (<|>))
