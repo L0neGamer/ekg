@@ -1,3 +1,7 @@
+## 0.4.0.8 (2015-07-32)
+
+ * Move the JSON encoding into a separate ekg-json package.
+
 ## 0.4.0.7 (2015-07-07)
 
  * Support aeson-0.9.
