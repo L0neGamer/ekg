@@ -158,6 +158,9 @@ $(document).ready(function () {
 
                 data[i].push([time, series[i].fn(stats, time,
                                                  prev_stats, prev_time)]);
+
+                // the data may arrive out-of-order, so sort by time stamp first
+                data[i].sort(function (a, b) { return a[0] - b[0]; });
             }
 
             // zip legends with data
