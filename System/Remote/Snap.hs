@@ -32,37 +32,15 @@ import System.Remote.Json
 
 ------------------------------------------------------------------------
 
--- | Convert a host name (e.g. \"localhost\" or \"127.0.0.1\") to a
--- numeric host address (e.g. \"127.0.0.1\").
-getNumericHostAddress :: S.ByteString -> IO S.ByteString
-getNumericHostAddress host = do
-    ais <- getAddrInfo Nothing (Just (S8.unpack host)) Nothing
-    case ais of
-        [] -> unsupportedAddressError
-        (ai:_) -> do
-            ni <- getNameInfo [NI_NUMERICHOST] True False (addrAddress ai)
-            case ni of
-                (Just numericHost, _) -> return $! S8.pack numericHost
-                _ -> unsupportedAddressError
-  where
-    unsupportedAddressError = throwIO $
-        userError $ "unsupported address: " ++ S8.unpack host
-
 startServer :: Store
             -> S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
             -> Int           -- ^ Port to listen on (e.g. 8000)
             -> IO ()
 startServer store host port = do
-    -- Snap doesn't allow for non-numeric host names in
-    -- 'Snap.setBind'. We work around that limitation by converting a
-    -- possible non-numeric host name to a numeric address.
-    numericHost <- getNumericHostAddress host
     let conf = Config.setVerbose False $
                Config.setErrorLog Config.ConfigNoLog $
                Config.setAccessLog Config.ConfigNoLog $
                Config.setPort port $
-               Config.setHostname host $
-               Config.setBind numericHost $
                Config.defaultConfig
     httpServe conf (monitor store)
 
