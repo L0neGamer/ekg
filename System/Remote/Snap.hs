@@ -73,6 +73,7 @@ format fmt action = do
 serve :: MonadSnap m => Store -> m ()
 serve store = do
     req <- getRequest
+    liftIO $ print req
     modifyResponse $ setContentType "application/json"
     if S.null (rqPathInfo req)
         then serveAll
