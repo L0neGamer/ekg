@@ -10,3 +10,4 @@
 cabal.config
 cabal.sandbox.config
 examples/Basic
+.stack-work/
