@@ -1,3 +1,7 @@
+## 0.4.0.10 (2016-05-28)
+
+ * GHC 8.0 support.
+
 ## 0.4.0.8 (2015-07-32)
 
  * Move the JSON encoding into a separate ekg-json package.
