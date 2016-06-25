@@ -67,7 +67,7 @@ import Control.Exception (SomeException, mask, try)
 
 -- $configuration
 --
--- To make full use out of this this module you must first enable GC
+-- To make full use out of this module you must first enable GC
 -- statistics collection in the run-time system. To enable GC
 -- statistics collection, either run your program with
 --
