@@ -18,6 +18,19 @@ monitoring server as soon as your application starts
 and then visit [http://localhost:8000/](http://localhost:8000/) in
 your web browser.
 
+To make full use out of this module you must first enable GC
+statistics collection in the run-time system. To enable GC
+statistics collection, either run your program with
+
+> +RTS -T
+
+or compile it with
+
+> -with-rtsopts=-T
+
+The runtime overhead of @-T@ is very small so it's safe to always
+leave it enabled.
+
 # JSON API
 
 The monitoring server also lets you to retrieve the stats as JSON.
