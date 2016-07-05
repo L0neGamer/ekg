@@ -28,7 +28,7 @@ or compile it with
 
 > -with-rtsopts=-T
 
-The runtime overhead of @-T@ is very small so it's safe to always
+The runtime overhead of `-T` is very small so it's safe to always
 leave it enabled.
 
 # JSON API
