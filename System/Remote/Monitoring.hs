@@ -44,6 +44,7 @@ module System.Remote.Monitoring
     ) where
 
 import Control.Concurrent (ThreadId, myThreadId, throwTo)
+import Control.Exception (AsyncException(ThreadKilled), fromException)
 import qualified Data.ByteString as S
 import Data.Int (Int64)
 import qualified Data.Text as T
@@ -234,8 +235,10 @@ forkServerWith store host port = do
     me <- myThreadId
     tid <- withSocketsDo $ forkFinally (startServer store host port) $ \ r ->
         case r of
-            Left e  -> throwTo me e
             Right _ -> return ()
+            Left e  -> case fromException e of
+                Just ThreadKilled -> return ()
+                _                 -> throwTo me e
     return $! Server tid store
   where
     getTimeMs :: IO Int64
