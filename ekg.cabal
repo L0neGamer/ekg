@@ -29,13 +29,13 @@ library
   exposed-modules:
     System.Remote.Counter
     System.Remote.Gauge
+    System.Remote.Json
     System.Remote.Label
     System.Remote.Monitoring
+    System.Remote.Snap
 
   other-modules:
     Paths_ekg
-    System.Remote.Json
-    System.Remote.Snap
 
   build-depends:
     aeson < 1.2,
