@@ -1,3 +1,9 @@
+## 0.4.0.13 (2017-04-19)
+
+ * Support aeson 1.2.
+
+ * Down throw ThreadKilled exception back to the thread that killed us.
+
 ## 0.4.0.11 (2016-09-14)
 
  * Support aeson 1.0.
