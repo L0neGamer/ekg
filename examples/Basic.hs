@@ -22,18 +22,26 @@ mean xs = sum' xs / fromIntegral (length xs)
 
 main :: IO ()
 main = do
-    handle <- forkServer "localhost" 8000
-    counter <- getCounter "iterations" handle
-    label <- getLabel "args" handle
-    event <- getDistribution "runtime" handle
+    handle <- forkServer "0.0.0.0" 8000
+    baseCounter  <- getCounter "iterations" [] handle
+    fizzCounter  <- getCounter "iterations" ["dim0:fizz"] handle
+    buzzCounter  <- getCounter "iterations" ["dim0:buzz"] handle
+    fizzbuzzCounter  <- getCounter "iterations" ["dim0:fizzbuzz"] handle
+    label <- getLabel "args" [] handle
+    event <- getDistribution "runtime" ["123", "456"] handle
     Label.set label "some text string"
-    let loop n = do
-            t <- timed $ evaluate $ mean [1..n]
+    let counter n
+            | n `mod` 15 == 0 = fizzbuzzCounter
+            | n `mod` 5  == 0 = fizzCounter
+            | n `mod` 3  == 0 = buzzCounter
+            | otherwise       = baseCounter
+    let loop n m = do
+            t <- timed $ evaluate $ mean $ fmap fromInteger [1..n]
             Distribution.add event t
-            threadDelay 2000
-            Counter.inc counter
-            loop n
-    loop 1000000
+            threadDelay 200
+            Counter.inc $ counter m
+            loop n (m + 1)
+    loop (1000000 :: Integer) 0
 
 timed :: IO a -> IO Double
 timed m = do

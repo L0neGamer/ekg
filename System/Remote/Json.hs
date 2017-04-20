@@ -18,4 +18,4 @@ encodeAll = A.encode . Json.sampleToJson
 -- | Encode metric a JSON object. See 'Json.valueToJson'
 -- for a description of the encoding.
 encodeOne :: Value -> L.ByteString
-encodeOne = A.encode . Json.valueToJson
+encodeOne = A.encode . Json.valueToJson []

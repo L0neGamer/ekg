@@ -250,35 +250,46 @@ forkServerWith store host port = do
 -- | Return a new, zero-initialized counter associated with the given
 -- name and server. Multiple calls to 'getCounter' with the same
 -- arguments will result in an 'error'.
-getCounter :: T.Text  -- ^ Counter name
-           -> Server  -- ^ Server that will serve the counter
+getCounter :: T.Text   -- ^ Counter name
+           -> [T.Text] -- ^ Dimension names
+           -> Server   -- ^ Server that will serve the counter
            -> IO Counter.Counter
-getCounter name server = Metrics.createCounter name (serverMetricStore server)
+getCounter name dims server =
+    Metrics.createCounter (Metrics.dimensional name dims)
+                          (serverMetricStore server)
 
 -- | Return a new, zero-initialized gauge associated with the given
 -- name and server. Multiple calls to 'getGauge' with the same
 -- arguments will result in an 'error'.
-getGauge :: T.Text  -- ^ Gauge name
-         -> Server  -- ^ Server that will serve the gauge
+getGauge :: T.Text   -- ^ Gauge name
+         -> [T.Text] -- ^ Dimension names
+         -> Server   -- ^ Server that will serve the gauge
          -> IO Gauge.Gauge
-getGauge name server = Metrics.createGauge name (serverMetricStore server)
+getGauge name dims server =
+    Metrics.createGauge (Metrics.dimensional name dims)
+                        (serverMetricStore server)
 
 -- | Return a new, empty label associated with the given name and
 -- server. Multiple calls to 'getLabel' with the same arguments will
 -- result in an 'error'.
 getLabel :: T.Text  -- ^ Label name
+         -> [T.Text] -- ^ Dimension names
          -> Server  -- ^ Server that will serve the label
          -> IO Label.Label
-getLabel name server = Metrics.createLabel name (serverMetricStore server)
+getLabel name dims server =
+    Metrics.createLabel (Metrics.dimensional name dims)
+                        (serverMetricStore server)
 
 -- | Return a new distribution associated with the given name and
 -- server. Multiple calls to 'getDistribution' with the same arguments
 -- will result in an 'error'.
-getDistribution :: T.Text  -- ^ Distribution name
-                -> Server  -- ^ Server that will serve the distribution
+getDistribution :: T.Text   -- ^ Distribution name
+                -> [T.Text] -- ^ Dimension names
+                -> Server   -- ^ Server that will serve the distribution
                 -> IO Distribution.Distribution
-getDistribution name server =
-    Metrics.createDistribution name (serverMetricStore server)
+getDistribution name dims server =
+    Metrics.createDistribution (Metrics.dimensional name dims)
+                               (serverMetricStore server)
 
 ------------------------------------------------------------------------
 -- Backwards compatibility shims
