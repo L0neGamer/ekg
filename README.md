@@ -1,4 +1,4 @@
-# EKG: Remote monitoring of running processes over HTTP
+# EKG: Remote monitoring of running processes over HTTP [![Hackage version](https://img.shields.io/hackage/v/ekg.svg?label=Hackage)](https://hackage.haskell.org/package/ekg) [![Build Status](https://secure.travis-ci.org/tibbe/ekg.svg?branch=master)](http://travis-ci.org/tibbe/ekg)
 
 This library lets you remotely monitor a running process over HTTP.
 It provides a simple way to integrate a monitoring server into any
