@@ -49,7 +49,7 @@ library
     snap-core < 1.1,
     snap-server < 1.1,
     text < 1.3,
-    time < 1.7,
+    time < 1.9,
     transformers < 0.6,
     unordered-containers < 0.3
 
