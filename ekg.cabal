@@ -1,5 +1,5 @@
 name:                ekg
-version:             0.4.0.13
+version:             0.4.0.14
 synopsis:            Remote monitoring of processes
 description:
   This library lets you remotely monitor a running process over HTTP.
@@ -23,7 +23,7 @@ extra-source-files:  LICENSE.icons LICENSE.javascript README.md
                      assets/bootstrap-1.4.0.css
                      examples/Basic.hs CHANGES.md
 cabal-version:       >= 1.8
-tested-with:         GHC == 8.0.1, GHC == 7.10.1, GHC == 7.8.4, GHC == 7.6.3
+tested-with:         GHC == 8.2.1, GHC == 8.0.1, GHC == 7.10.1, GHC == 7.8.4, GHC == 7.6.3
 
 library
   exposed-modules:
