@@ -115,7 +115,7 @@ $(document).ready(function () {
             }
             alertVisible = false;
             for (var i = 0; i < listeners.length; i++) {
-                listeners[i](stats, stats.ekg.server_timestamp_ms.val);
+                listeners[i](stats, stats.ekg.server_timestamp_ms[0].val);
             }
         }
 
@@ -195,11 +195,13 @@ $(document).ready(function () {
 
     function addDynamicPlot(key, button, graph_fn, label_fn) {
         function getStats(stats, time, prev_stats, prev_time) {
-            return graph_fn(key, stats, time, prev_stats, prev_time);
+            return graph_fn(stats, time, prev_stats, prev_time);
         }
 
         // jQuery has problem with IDs containing dots.
-        var plotId = key.replace(/\./g, "-") + "-plot";
+        var plotId = key.replace(/\./g, "-")
+		        .replace(/ /g,"__")
+			.replace(/:/g,"_") + "-plot";
         $("#plots:last").append(
             '<div id="' + plotId + '" class="plot-container">' +
                 '<img src="cross.png" class="close-button"><h3>' + key +
@@ -234,20 +236,50 @@ $(document).ready(function () {
         var DISTRIBUTION = "d";
         var metrics = {};
 
-        function makeDataGetter(key) {
-            var pieces = key.split(".");
-            function get(key, stats, time, prev_stats, prev_time) {
-                var value = stats;
-                $.each(pieces, function(unused_index, piece) {
-                    value = value[piece];
-                });
+        // Utility function to test for arrays of strings equality.
+        var sameDimensions = function(xs, ys) {
+	    if (xs.length != ys.length) {
+                return false;
+	    }
+	    var ret = true;
+            $.each(xs, function(xy_index, x) {
+                var y = ys[xy_index];
+                if (x != y) {
+                    ret = false;
+		    return;
+                }
+            })
+	    return ret;
+        }
+
+        var lookupStat = function(name, dims, stats) {
+            var pieces = name.split(".");
+            // find the nested object
+            var arrayValues = stats;
+            $.each(pieces, function(unused_index, piece) {
+                arrayValues = arrayValues[piece];
+            });
+            // find the correct dimensional break-down
+            var value = undefined;
+            $.each(arrayValues, function(unused_index, obj) {
+                if (sameDimensions(obj.dims, dims)) {
+                    value = obj;
+                }
+            })
+	    return value;
+        }
+
+        function makeDataGetter(name, dims) {
+            function get(stats, time, prev_stats, prev_time) {
+                // find the nested object
+                var value = lookupStat(name, dims, stats);
+
+                // do something here
                 if (value.type === COUNTER) {
-                    if (prev_stats == undefined)
+                    if (prev_stats == undefined) {
                         return null;
-                    var prev_value = prev_stats;
-                    $.each(pieces, function(unused_index, piece) {
-                        prev_value = prev_value[piece];
-                    });
+                    }
+		    var prev_value = lookupStat(name, dims, prev_stats);
                     return 1000 * (value.val - prev_value.val) /
                         (time - prev_time);
                 } else if (value.type === DISTRIBUTION) {
@@ -268,8 +300,9 @@ $(document).ready(function () {
         }
 
         /** Adds the table row. */
-        function addElem(key, value) {
+        function addElem(name, value) {
             var elem;
+	    var key = name + " " + value.dims.join(" ");
             if (key in metrics) {
                 elem = metrics[key];
             } else {
@@ -284,7 +317,7 @@ $(document).ready(function () {
                 metrics[key] = elem;
 
                 var button = table.find("tbody > tr:last > td:first > img");
-                var graph_fn = makeDataGetter(key);
+                var graph_fn = makeDataGetter(name, value.dims);
                 var label_fn = gaugeLabel;
                 if (value.type === COUNTER) {
                     label_fn = counterLabel;
@@ -316,12 +349,15 @@ $(document).ready(function () {
         /** Updates UI for all metrics. */
         function onDataReceived(stats, time) {
             function build(prefix, obj) {
-                $.each(obj, function (suffix, value) {
-                    if (value.hasOwnProperty("type")) {
-                        var key = prefix + suffix;
-                        addElem(key, value);
+                $.each(obj, function (suffix, values) {
+		    var name = prefix + suffix;
+		    // leaves are arrays of dimensional break-down
+                    if (Array.isArray(values)) {
+                        $.each(values, function (index, value) {
+                            addElem(name, value);
+			});
                     } else {
-                        build(prefix + suffix + '.', value);
+                        build(name + '.', values);
                     }
                 });
             }
@@ -334,40 +370,40 @@ $(document).ready(function () {
     function initAll() {
         // Metrics
         var current_bytes_used = function (stats) {
-            return stats.rts.gc.current_bytes_used.val;
+            return stats.rts.gc.current_bytes_used[0].val;
         };
         var max_bytes_used = function (stats) {
-            return stats.rts.gc.max_bytes_used.val;
+            return stats.rts.gc.max_bytes_used[0].val;
         };
         var max_bytes_slop = function (stats) {
-            return stats.rts.gc.max_bytes_slop.val;
+            return stats.rts.gc.max_bytes_slop[0].val;
         };
         var current_bytes_slop = function (stats) {
-            return stats.rts.gc.current_bytes_slop.val;
+            return stats.rts.gc.current_bytes_slop[0].val;
         };
         var productivity_wall_percent = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            var mutator_ms = stats.rts.gc.mutator_wall_ms.val -
-                prev_stats.rts.gc.mutator_wall_ms.val;
-            var gc_ms = stats.rts.gc.gc_wall_ms.val -
-                prev_stats.rts.gc.gc_wall_ms.val;
+            var mutator_ms = stats.rts.gc.mutator_wall_ms[0].val -
+                prev_stats.rts.gc.mutator_wall_ms[0].val;
+            var gc_ms = stats.rts.gc.gc_wall_ms[0].val -
+                prev_stats.rts.gc.gc_wall_ms[0].val;
             return 100 * mutator_ms / (mutator_ms + gc_ms);
         };
         var productivity_cpu_percent = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            var mutator_ms = stats.rts.gc.mutator_cpu_ms.val -
-                prev_stats.rts.gc.mutator_cpu_ms.val;
-            var gc_ms = stats.rts.gc.gc_cpu_ms.val -
-                prev_stats.rts.gc.gc_cpu_ms.val;
+            var mutator_ms = stats.rts.gc.mutator_cpu_ms[0].val -
+                prev_stats.rts.gc.mutator_cpu_ms[0].val;
+            var gc_ms = stats.rts.gc.gc_cpu_ms[0].val -
+                prev_stats.rts.gc.gc_cpu_ms[0].val;
             return 100 * mutator_ms / (mutator_ms + gc_ms);
         };
         var allocation_rate = function (stats, time, prev_stats, prev_time) {
             if (prev_stats == undefined)
                 return null;
-            return 1000 * (stats.rts.gc.bytes_allocated.val -
-                           prev_stats.rts.gc.bytes_allocated.val) /
+            return 1000 * (stats.rts.gc.bytes_allocated[0].val -
+                           prev_stats.rts.gc.bytes_allocated[0].val) /
                 (time - prev_time);
         };
 

@@ -12,16 +12,16 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Function (on)
 import qualified Data.HashMap.Strict as M
 import qualified Data.List as List
+import qualified Data.Map.Lazy as LMap
 import qualified Data.Text.Encoding as T
 import Data.Word (Word8)
 import Network.Socket (NameInfoFlag(NI_NUMERICHOST), addrAddress, getAddrInfo,
                        getNameInfo)
 import Paths_ekg (getDataDir)
 import Prelude hiding (read)
-import Snap.Core (MonadSnap, Request, Snap, finishWith, getHeader, getRequest,
-                  getResponse, method, Method(GET), modifyResponse, pass,
-                  rqPathInfo, setContentType, setResponseStatus,
-                  writeLBS)
+import Snap.Core (MonadSnap, Request, Snap, finishWith, getHeader, getQueryParams,
+		  getRequest, getResponse, method, Method(GET), modifyResponse,
+                  pass, rqPathInfo, setContentType, setResponseStatus, writeLBS)
 import Snap.Http.Server (httpServe)
 import qualified Snap.Http.Server.Config as Config
 import Snap.Util.FileServe (serveDirectory)
@@ -103,17 +103,22 @@ serve store = do
     serveAll = do
         metrics <- liftIO $ sampleAll store
         writeLBS $ encodeAll metrics
+    -- consider deprecating this feature?
     serveOne pathInfo = do
+        params <- getQueryParams
         let segments  = S8.split '/' pathInfo
             nameBytes = S8.intercalate "." segments
-        case T.decodeUtf8' nameBytes of
+            dims = maybe [] id (LMap.lookup "d" params)
+            decoded = (,) <$> (T.decodeUtf8' nameBytes)
+                          <*> (traverse T.decodeUtf8' dims)
+        case decoded of
             Left _ -> do
                 modifyResponse $ setResponseStatus 400 "Bad Request"
                 r <- getResponse
                 finishWith r
-            Right name -> do
+            Right (name, dimensions) -> do
                 metrics <- liftIO $ sampleAll store
-                case M.lookup name metrics of
+                case M.lookup (dimensional name dimensions) metrics of
                     Nothing -> pass
                     Just metric -> writeLBS $ encodeOne metric
 
