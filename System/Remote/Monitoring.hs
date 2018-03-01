@@ -199,7 +199,7 @@ data Server = Server {
 -- | Like 'forkServerWith', but creates a default metric store with
 -- some predefined metrics. The predefined metrics are those given in
 -- 'System.Metrics.registerGcMetrics'.
-forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
+forkServer :: Maybe S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> Int           -- ^ Port to listen on (e.g. 8000)
            -> IO Server
 forkServer host port = do
@@ -227,7 +227,7 @@ forkServer host port = do
 -- metrics registered by 'forkServer', you might want to register them
 -- yourself.
 forkServerWith :: Metrics.Store  -- ^ Metric store
-               -> S.ByteString   -- ^ Host to listen on (e.g. \"localhost\")
+               -> Maybe S.ByteString   -- ^ Host to listen on (e.g. \"localhost\")
                -> Int            -- ^ Port to listen on (e.g. 8000)
                -> IO Server
 forkServerWith store host port = do

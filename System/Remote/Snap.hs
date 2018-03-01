@@ -49,20 +49,23 @@ getNumericHostAddress host = do
         userError $ "unsupported address: " ++ S8.unpack host
 
 startServer :: Store
-            -> S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
+            -> Maybe S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
             -> Int           -- ^ Port to listen on (e.g. 8000)
             -> IO ()
-startServer store host port = do
+startServer store m_host port = do
     -- Snap doesn't allow for non-numeric host names in
     -- 'Snap.setBind'. We work around that limitation by converting a
     -- possible non-numeric host name to a numeric address.
-    numericHost <- getNumericHostAddress host
+    setBind <- case m_host of
+        Just host -> do
+            numericHost <- getNumericHostAddress host
+            return $ Config.setHostname host . Config.setBind numericHost
+        Nothing -> return id
     let conf = Config.setVerbose False $
                Config.setErrorLog Config.ConfigNoLog $
                Config.setAccessLog Config.ConfigNoLog $
                Config.setPort port $
-               Config.setHostname host $
-               Config.setBind numericHost $
+               setBind $
                Config.defaultConfig
     httpServe conf (monitor store)
 
