@@ -12,7 +12,7 @@ monitoring server as soon as your application starts
     import System.Remote.Monitoring
     
     main = do
-         forkServer "localhost" 8000
+         forkServer (Just "localhost") 8000
          ...
 
 and then visit [http://localhost:8000/](http://localhost:8000/) in

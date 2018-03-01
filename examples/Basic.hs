@@ -22,7 +22,7 @@ mean xs = sum' xs / fromIntegral (length xs)
 
 main :: IO ()
 main = do
-    handle <- forkServer "localhost" 8000
+    handle <- forkServer (Just "localhost") 8000
     counter <- getCounter "iterations" handle
     label <- getLabel "args" handle
     event <- getDistribution "runtime" handle
