@@ -10,7 +10,7 @@
 -- Typical usage is to start the monitoring server at program startup
 --
 -- > main = do
--- >     forkServer (Just "localhost") 8000
+-- >     forkServer "localhost" 8000
 -- >     ...
 --
 -- and then periodically check the stats using a web browser or a
@@ -164,7 +164,7 @@ import Control.Exception (SomeException, mask, try)
 -- value. Example:
 --
 -- > main = do
--- >     handle <- forkServer (Just "localhost") 8000
+-- >     handle <- forkServer "localhost" 8000
 -- >     counter <- getCounter "iterations" handle
 -- >     let loop n = do
 -- >             inc counter
@@ -199,7 +199,7 @@ data Server = Server {
 -- | Like 'forkServerWith', but creates a default metric store with
 -- some predefined metrics. The predefined metrics are those given in
 -- 'System.Metrics.registerGcMetrics'.
-forkServer :: Maybe S.ByteString  -- ^ Host to listen on (e.g. \"localhost\"), or 'Nothing' to listen on all interfaces
+forkServer :: Maybe S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> Int           -- ^ Port to listen on (e.g. 8000)
            -> IO Server
 forkServer host port = do
@@ -211,7 +211,6 @@ forkServer host port = do
 -- requests to the given host and port.  The host argument can be
 -- either a numeric network address (dotted quad for IPv4,
 -- colon-separated hex for IPv6) or a hostname (e.g. \"localhost\".)
--- If the host argument is @Nothing@, EKG will listen on all interfaces.
 -- The client can control the Content-Type used in responses by
 -- setting the Accept header.  At the moment two content types are
 -- available: \"application\/json\" and \"text\/html\".
