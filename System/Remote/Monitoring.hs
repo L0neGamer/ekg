@@ -33,7 +33,9 @@ module System.Remote.Monitoring
     , serverThreadId
     , serverMetricStore
     , forkServer
+    , forkServerNoHostname
     , forkServerWith
+    , forkServerNoHostnameWith
 
       -- * Defining metrics
       -- $userdefined
@@ -199,13 +201,23 @@ data Server = Server {
 -- | Like 'forkServerWith', but creates a default metric store with
 -- some predefined metrics. The predefined metrics are those given in
 -- 'System.Metrics.registerGcMetrics'.
-forkServer :: Maybe S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
+forkServer :: S.ByteString  -- ^ Host to listen on (e.g. \"localhost\")
            -> Int           -- ^ Port to listen on (e.g. 8000)
            -> IO Server
 forkServer host port = do
     store <- Metrics.newStore
     Metrics.registerGcMetrics store
-    forkServerWith store host port
+    forkServerMaybeHostnameWith store (Just host) port
+
+-- | If you are running EKG on a private network (including virtual
+-- private network), it may be appropriate to bind to all interfaces,
+-- not only localhost.
+forkServerNoHostname :: Int           -- ^ Port to listen on (e.g. 8000)
+           -> IO Server
+forkServerNoHostname port = do
+    store <- Metrics.newStore
+    Metrics.registerGcMetrics store
+    forkServerMaybeHostnameWith store Nothing port
 
 -- | Start an HTTP server in a new thread.  The server replies to GET
 -- requests to the given host and port.  The host argument can be
@@ -227,10 +239,23 @@ forkServer host port = do
 -- metrics registered by 'forkServer', you might want to register them
 -- yourself.
 forkServerWith :: Metrics.Store  -- ^ Metric store
+               -> S.ByteString   -- ^ Host to listen on (e.g. \"localhost\")
+               -> Int            -- ^ Port to listen on (e.g. 8000)
+               -> IO Server
+forkServerWith store host port =
+    forkServerMaybeHostnameWith store (Just host) port
+
+forkServerNoHostnameWith :: Metrics.Store  -- ^ Metric store
+               -> Int            -- ^ Port to listen on (e.g. 8000)
+               -> IO Server
+forkServerNoHostnameWith store port =
+    forkServerMaybeHostnameWith store Nothing port
+
+forkServerMaybeHostnameWith :: Metrics.Store  -- ^ Metric store
                -> Maybe S.ByteString   -- ^ Host to listen on (e.g. \"localhost\")
                -> Int            -- ^ Port to listen on (e.g. 8000)
                -> IO Server
-forkServerWith store host port = do
+forkServerMaybeHostnameWith store host port = do
     Metrics.registerCounter "ekg.server_timestamp_ms" getTimeMs store
     me <- myThreadId
     tid <- withSocketsDo $ forkFinally (startServer store host port) $ \ r ->
