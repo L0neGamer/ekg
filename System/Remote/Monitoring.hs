@@ -213,7 +213,7 @@ forkServer host port = do
 -- private network), it may be appropriate to bind to all interfaces,
 -- not only localhost.
 forkServerNoHostname :: Int           -- ^ Port to listen on (e.g. 8000)
-           -> IO Server
+                     -> IO Server
 forkServerNoHostname port = do
     store <- Metrics.newStore
     Metrics.registerGcMetrics store
@@ -246,15 +246,15 @@ forkServerWith store host port =
     forkServerMaybeHostnameWith store (Just host) port
 
 forkServerNoHostnameWith :: Metrics.Store  -- ^ Metric store
-               -> Int            -- ^ Port to listen on (e.g. 8000)
-               -> IO Server
+                         -> Int            -- ^ Port to listen on (e.g. 8000)
+                         -> IO Server
 forkServerNoHostnameWith store port =
     forkServerMaybeHostnameWith store Nothing port
 
 forkServerMaybeHostnameWith :: Metrics.Store  -- ^ Metric store
-               -> Maybe S.ByteString   -- ^ Host to listen on (e.g. \"localhost\")
-               -> Int            -- ^ Port to listen on (e.g. 8000)
-               -> IO Server
+                            -> Maybe S.ByteString   -- ^ Host to listen on (e.g. \"localhost\")
+                            -> Int            -- ^ Port to listen on (e.g. 8000)
+                            -> IO Server
 forkServerMaybeHostnameWith store host port = do
     Metrics.registerCounter "ekg.server_timestamp_ms" getTimeMs store
     me <- myThreadId
