@@ -209,7 +209,9 @@ forkServer host port = do
     Metrics.registerGcMetrics store
     forkServerMaybeHostnameWith store (Just host) port
 
--- | If you are running EKG on a private network (including virtual
+-- | Create a server with prefined metrics from
+-- 'System.Metrics.registerGcMetrics', listening on all interfaces.
+-- If you are running EKG on a private network (including virtual
 -- private network), it may be appropriate to bind to all interfaces,
 -- not only localhost.
 forkServerNoHostname :: Int           -- ^ Port to listen on (e.g. 8000)
@@ -245,6 +247,9 @@ forkServerWith :: Metrics.Store  -- ^ Metric store
 forkServerWith store host port =
     forkServerMaybeHostnameWith store (Just host) port
 
+-- | Start an HTTP server in a new thread, with the specified metrics
+-- store, listening on all interfaces.  Other than accepting requests
+-- to any hostname, this is the same as `forkServerWith`.
 forkServerNoHostnameWith :: Metrics.Store  -- ^ Metric store
                          -> Int            -- ^ Port to listen on (e.g. 8000)
                          -> IO Server
