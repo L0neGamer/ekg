@@ -1,3 +1,8 @@
+## 0.4.0.15 (2018-03-20)
+
+ * GHC 8.4 support.
+ * Fixed a syntax error in the .cabal file.
+
 ## 0.4.0.14 (2017-07-31)
 
  * GHC 8.2 support.
