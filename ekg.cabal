@@ -46,7 +46,7 @@ library
     ekg-core >= 0.1 && < 0.2,
     ekg-json >= 0.1 && < 0.2,
     filepath < 1.5,
-    network < 2.9,
+    network < 3.2,
     snap-core < 1.1,
     snap-server < 1.2,
     text < 1.3,
