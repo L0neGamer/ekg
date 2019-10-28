@@ -35,7 +35,6 @@ library
     System.Remote.Monitoring
 
   other-modules:
-    Paths_ekg
     System.Remote.Json
     System.Remote.Snap
 
