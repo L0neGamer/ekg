@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module System.Remote.Snap
     ( startServer
@@ -9,6 +10,7 @@ import Control.Exception (throwIO)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
+import Data.Maybe (fromMaybe)
 import Data.Function (on)
 import qualified Data.HashMap.Strict as M
 import qualified Data.List as List
@@ -16,19 +18,21 @@ import qualified Data.Text.Encoding as T
 import Data.Word (Word8)
 import Network.Socket (NameInfoFlag(NI_NUMERICHOST), addrAddress, getAddrInfo,
                        getNameInfo)
-import Paths_ekg (getDataDir)
 import Prelude hiding (read)
 import Snap.Core (MonadSnap, Request, Snap, finishWith, getHeader, getRequest,
                   getResponse, method, Method(GET), modifyResponse, pass,
-                  rqPathInfo, setContentType, setResponseStatus,
-                  writeLBS)
+                  rqURI, rqPathInfo,
+                  setContentType, setContentLength, setResponseStatus, setResponseCode,
+                  writeBS, writeLBS)
 import Snap.Http.Server (httpServe)
 import qualified Snap.Http.Server.Config as Config
-import Snap.Util.FileServe (serveDirectory)
-import System.FilePath ((</>))
+import Snap.Util.FileServe (defaultMimeTypes)
+import System.FilePath (takeExtension)
 
 import System.Metrics
 import System.Remote.Json
+import Data.FileEmbed (embedDir)
+
 
 ------------------------------------------------------------------------
 
@@ -72,9 +76,9 @@ startServer store m_host port = do
 -- | A handler that can be installed into an existing Snap application.
 monitor :: Store -> Snap ()
 monitor store = do
-    dataDir <- liftIO getDataDir
     (jsonHandler $ serve store)
-        <|> serveDirectory (dataDir </> "assets")
+        <|>
+        serveAssets
   where
     jsonHandler = wrapHandler "application/json"
     wrapHandler fmt handler = method GET $ format fmt $ handler
@@ -145,3 +149,32 @@ breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
 breakDiscard w s =
     let (x, y) = S.break (== w) s
     in (x, S.drop 1 y)
+
+-- | Serve the embedded assets.
+serveAssets :: MonadSnap m => m ()
+serveAssets = serveEmbeddedFiles $(embedDir "assets")
+
+-- | Serve a list of files under the given filepaths while selecting the MIME
+--type using the 'defaultMimeMap'.
+serveEmbeddedFiles :: MonadSnap m => [(FilePath, S8.ByteString)] -> m ()
+serveEmbeddedFiles files = do
+      req <- getRequest
+      fromMaybe pass $ M.lookup (rqURI req) table
+    where
+      table         = M.fromList $ do
+          (path, content) <- files
+          let err  = error $ "Failed to determine MIME type of '" ++ path ++ "'"
+              mime = fromMaybe err $
+                         M.lookup (takeExtension path) defaultMimeTypes
+              response = do
+                modifyResponse $
+                  setContentType mime .
+                  setContentLength (fromIntegral $ S8.length content) .
+                  setResponseCode 200
+                writeBS content
+          path' <- 
+            map S8.pack $
+            if path == "index.html" || path == "index.htm"
+              then ["/", "/index.html", "/index.htm"]
+              else ["/" ++ path]
+          return (path', response)
