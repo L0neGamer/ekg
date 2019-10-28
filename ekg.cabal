@@ -1,54 +1,61 @@
 name:                ekg
-version:             0.3.1.3
+version:             0.4.0.15
+cabal-version:       >= 1.8
 synopsis:            Remote monitoring of processes
 description:
   This library lets you remotely monitor a running process over HTTP.
   It provides a simple way to integrate a monitoring server into any
   application.
 homepage:            https://github.com/tibbe/ekg
+bug-reports:         https://github.com/tibbe/ekg/issues
 license:             BSD3
 license-file:        LICENSE
 author:              Johan Tibell
-maintainer:          johan.tibell@gmail.com
+maintainer:          Johan Tibell <johan.tibell@gmail.com>,
+                     Mikhail Glushenkov <mikhail.glushenkov@gmail.com>
 category:            System, Network
 build-type:          Simple
-cabal-version:       >=1.6
 extra-source-files:  LICENSE.icons LICENSE.javascript README.md
                      assets/jquery-1.6.4.js assets/jquery.flot.js
-                     examples/Basic.hs
-
+                     assets/bootstrap-1.4.0.css
+                     examples/Basic.hs CHANGES.md
                      assets/index.html assets/monitor.js assets/monitor.css
                      assets/jquery.flot.min.js assets/jquery-1.6.4.min.js
                      assets/bootstrap-1.4.0.min.css
                      assets/chart_line_add.png assets/cross.png
+tested-with:         GHC == 8.6.5, GHC == 8.4.4,  GHC == 8.2.2,
+                     GHC == 8.0.2, GHC == 7.10.3, GHC == 7.8.4,
+                     GHC == 7.6.3
+
 library
-  exposed-modules:     System.Remote.Counter
-                       System.Remote.Gauge
-                       System.Remote.Label
-                       System.Remote.Monitoring
+  exposed-modules:
+    System.Remote.Counter
+    System.Remote.Gauge
+    System.Remote.Label
+    System.Remote.Monitoring
 
-  other-modules:       Paths_ekg
-                       System.Remote.Common
-                       System.Remote.Counter.Internal
-                       System.Remote.Gauge.Internal
-                       System.Remote.Label.Internal
-                       System.Remote.Snap
+  other-modules:
+    Paths_ekg
+    System.Remote.Json
+    System.Remote.Snap
 
-  build-depends:       aeson < 0.7,
-                       base >= 4.5 && < 5,
-                       bytestring < 1.0,
-                       containers < 0.6,
-                       filepath < 1.4,
-                       network < 2.5,
-                       snap-core < 0.10,
-                       snap-server < 0.10,
-                       text < 0.12,
-                       time < 1.5,
-                       transformers < 0.4,
-                       unordered-containers < 0.3,
-                       file-embed == 0.0.*,
-                       directory < 1.3
-  ghc-options:         -Wall
+  build-depends:
+    aeson >= 0.4 && < 1.5,
+    base >= 4.5 && < 4.13,
+    bytestring < 1.0,
+    ekg-core >= 0.1 && < 0.2,
+    ekg-json >= 0.1 && < 0.2,
+    file-embed == 0.0.*,
+    filepath < 1.5,
+    network < 3.2,
+    snap-core < 1.1,
+    snap-server < 1.2,
+    text < 1.3,
+    time < 1.9,
+    transformers < 0.6,
+    unordered-containers < 0.3
+
+  ghc-options: -Wall
 
 source-repository head
   type:     git

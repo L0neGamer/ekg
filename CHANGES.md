@@ -1,3 +1,88 @@
+## 0.4.0.15 (2018-03-20)
+
+ * GHC 8.4 support.
+ * Fixed a syntax error in the .cabal file.
+
+## 0.4.0.14 (2017-07-31)
+
+ * GHC 8.2 support.
+
+## 0.4.0.13 (2017-04-19)
+
+ * Support aeson 1.2.
+
+ * Down throw ThreadKilled exception back to the thread that killed us.
+
+## 0.4.0.11 (2016-09-14)
+
+ * Support aeson 1.0.
+
+## 0.4.0.10 (2016-05-28)
+
+ * GHC 8.0 support.
+
+## 0.4.0.8 (2015-07-32)
+
+ * Move the JSON encoding into a separate ekg-json package.
+
+## 0.4.0.7 (2015-07-07)
+
+ * Support aeson-0.9.
+
+## 0.4.0.6 (2015-05-08)
+
+ * Support GHC 7.10.
+ 
+ * Re-raise exceptions in the server thread in the main thread.
+ 
+ * Improve Windows support.
+
+## 0.4.0.5 (2014-11-30)
+
+ * Support network-2.6.
+
+ * Fix broken example code.
+
+## 0.4.0.4 (2014-10-20)
+
+ * Fix bug where `forkServerWith` would register GC metrics, despite
+   the docs saying that it doesn't.
+
+ * Fix example code that broke in the package split.
+
+## 0.4.0.3 (2014-09-30)
+
+ * Support text-1.2.
+
+## 0.4.0.2 (2014-08-19)
+
+ * Support aeson-0.8 and transformers-0.4.
+ * Include original bootstrap source in tarball.
+
+## 0.4.0.1 (2014-07-12)
+
+ * Fix JS bug which led to type errors for distribution metrics.
+
+## 0.4.0.0 (2014-05-01)
+
+ * Lots of the internals were split off into a new package, ekg-core.
+
+ * The `Gauge.modify` function was removed, as it can't be supported
+   by the new, more efficient implementation of gauges.
+
+ * The JSON API was significantly overhauled. The the Haddock
+   documentation for details.
+
+ * The metric store used internally by the server is now exposed and
+   can be used to share the same metric store between ekg and e.g.
+   ekg-statsd.
+
+ * It's now possible to provide a custom metric store to the server.
+
+ * The getDistribution function was added.
+
+ * The UI now has less special treatment for built-in metrics.
+
 ## 0.3.1.3 (2013-02-22)
 
  * Fixed security issue where ekg would always listen to all incoming

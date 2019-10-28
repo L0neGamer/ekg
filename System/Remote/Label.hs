@@ -1,27 +1,18 @@
-{-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_HADDOCK not-home #-}
+
 -- | This module defines a type for mutable, string-valued labels.
 -- Labels are variable values and can be used to track e.g. the
 -- command line arguments or other free-form values. All operations on
 -- labels are thread-safe.
+--
+-- N.B. This module exists to maintain backwards compatibility with
+-- older versions of this library. New code should use the
+-- @System.Metrics.Label@ module from the ekg-core package instead.
 module System.Remote.Label
     (
-      Label
-    , set
-    , modify
+      Label.Label
+    , Label.set
+    , Label.modify
     ) where
 
-import Data.IORef (atomicModifyIORef)
-import qualified Data.Text as T
-
-import System.Remote.Label.Internal
-
--- | Set the label to the given value.
-set :: Label -> T.Text -> IO ()
-set (C ref) !i = atomicModifyIORef ref $ \ _ -> (i, ())
-
--- | Set the label to the result of applying the given function to the
--- value.
-modify :: (T.Text -> T.Text) -> Label -> IO ()
-modify f (C ref) = do
-    !_ <- atomicModifyIORef ref $ \ i -> let i' = f i in (i', i')
-    return ()
+import qualified System.Metrics.Label as Label
