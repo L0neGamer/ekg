@@ -166,10 +166,15 @@ serveEmbeddedFiles files = do
           let err  = error $ "Failed to determine MIME type of '" ++ path ++ "'"
               mime = fromMaybe err $
                          M.lookup (takeExtension path) defaultMimeTypes
-          return ( S8.pack path
-                 , do modifyResponse
-                        $ setContentType mime
-                        . setContentLength (fromIntegral $ S8.length content)
-                        . setResponseCode 200
-                      writeBS content
-                 )
+              response = do
+                modifyResponse $
+                  setContentType mime .
+                  setContentLength (fromIntegral $ S8.length content) .
+                  setResponseCode 200
+                writeBS content
+          path' <- 
+            map S8.pack $
+            if path == "index.html" || path == "index.htm"
+              then ["/", "/index.html", "/index.htm"]
+              else ["/" ++ path]
+          return (path', response)
