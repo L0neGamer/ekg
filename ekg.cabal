@@ -33,11 +33,11 @@ library
     System.Remote.Gauge
     System.Remote.Label
     System.Remote.Monitoring
+    System.Remote.Snap
 
   other-modules:
     Paths_ekg
     System.Remote.Json
-    System.Remote.Snap
 
   build-depends:
     aeson >= 0.4 && < 1.5,
