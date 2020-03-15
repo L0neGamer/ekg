@@ -23,9 +23,9 @@ extra-source-files:  LICENSE.icons LICENSE.javascript README.md
                      assets/jquery-1.6.4.js assets/jquery.flot.js
                      assets/bootstrap-1.4.0.css
                      examples/Basic.hs CHANGES.md
-tested-with:         GHC == 8.6.5, GHC == 8.4.4,  GHC == 8.2.2,
-                     GHC == 8.0.2, GHC == 7.10.3, GHC == 7.8.4,
-                     GHC == 7.6.3
+tested-with:         GHC == 8.8.3, GHC == 8.6.5, GHC == 8.4.4,
+                     GHC == 8.2.2, GHC == 8.0.2, GHC == 7.10.3,
+                     GHC == 7.8.4, GHC == 7.6.3
 
 library
   exposed-modules:
