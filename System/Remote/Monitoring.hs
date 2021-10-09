@@ -30,6 +30,7 @@ module System.Remote.Monitoring
 
       -- * The monitoring server
       Server
+    , serverAsync
     , serverThreadId
     , serverMetricStore
     , forkServer
@@ -45,8 +46,8 @@ module System.Remote.Monitoring
     , getDistribution
     ) where
 
-import Control.Concurrent (ThreadId, myThreadId, throwTo)
-import Control.Exception (AsyncException(ThreadKilled), fromException)
+import Control.Concurrent.Async (async, Async (asyncThreadId))
+import Control.Concurrent (ThreadId)
 import qualified Data.ByteString as S
 import Data.Int (Int64)
 import qualified Data.Text as T
@@ -60,13 +61,6 @@ import qualified System.Metrics.Gauge as Gauge
 import qualified System.Metrics.Label as Label
 import System.Remote.Snap
 import Network.Socket (withSocketsDo)
-
-#if __GLASGOW_HASKELL__ >= 706
-import Control.Concurrent (forkFinally)
-#else
-import Control.Concurrent (forkIO)
-import Control.Exception (SomeException, mask, try)
-#endif
 
 -- $configuration
 --
@@ -190,13 +184,16 @@ data Server = Server {
       -- | The thread ID of the server. You can kill the server by
       -- killing this thread (i.e. by throwing it an asynchronous
       -- exception.)
-      serverThreadId :: {-# UNPACK #-} !ThreadId
+      serverAsync :: {-# UNPACK #-} !(Async ())
 
       -- | The metric store associated with the server. If you want to
       -- add metric to the default store created by 'forkServer' you
       -- need to use this function to retrieve it.
     , serverMetricStore :: {-# UNPACK #-} !Metrics.Store
     }
+
+serverThreadId :: Server -> ThreadId
+serverThreadId = asyncThreadId . serverAsync
 
 -- | Like 'forkServerWith', but creates a default metric store with
 -- some predefined metrics. The predefined metrics are those given in
@@ -262,14 +259,8 @@ forkServerMaybeHostnameWith :: Metrics.Store  -- ^ Metric store
                             -> IO Server
 forkServerMaybeHostnameWith store host port = do
     Metrics.registerCounter "ekg.server_timestamp_ms" getTimeMs store
-    me <- myThreadId
-    tid <- withSocketsDo $ forkFinally (startServer store host port) $ \ r ->
-        case r of
-            Right _ -> return ()
-            Left e  -> case fromException e of
-                Just ThreadKilled -> return ()
-                _                 -> throwTo me e
-    return $! Server tid store
+    a <- async $ withSocketsDo $ startServer store host port
+    return $! Server a store
   where
     getTimeMs :: IO Int64
     getTimeMs = (round . (* 1000)) `fmap` getPOSIXTime
@@ -309,13 +300,3 @@ getDistribution :: T.Text  -- ^ Distribution name
                 -> IO Distribution.Distribution
 getDistribution name server =
     Metrics.createDistribution name (serverMetricStore server)
-
-------------------------------------------------------------------------
--- Backwards compatibility shims
-
-#if __GLASGOW_HASKELL__ < 706
-forkFinally :: IO a -> (Either SomeException a -> IO ()) -> IO ThreadId
-forkFinally action and_then =
-  mask $ \restore ->
-    forkIO $ try (restore action) >>= and_then
-#endif

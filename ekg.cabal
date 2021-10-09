@@ -41,6 +41,7 @@ library
 
   build-depends:
     aeson >= 0.4 && < 1.6,
+    async,
     base >= 4.5 && < 4.15,
     bytestring < 1.0,
     ekg-core >= 0.1 && < 0.2,
