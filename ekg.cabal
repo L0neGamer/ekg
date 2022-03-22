@@ -1,5 +1,5 @@
 name:                ekg
-version:             0.4.0.16
+version:             0.5.0.0
 cabal-version:       >= 1.8
 synopsis:            Remote monitoring of processes
 description:
@@ -40,11 +40,11 @@ library
     System.Remote.Snap
 
   build-depends:
-    aeson >= 0.4 && < 1.6,
+    aeson >= 2.0 && < 2.1,
     base >= 4.5 && < 4.15,
     bytestring < 1.0,
     ekg-core >= 0.1 && < 0.2,
-    ekg-json >= 0.1 && < 0.2,
+    ekg-json >= 0.2 && < 0.3,
     filepath < 1.5,
     network < 3.2,
     snap-core < 1.1,
