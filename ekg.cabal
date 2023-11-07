@@ -1,31 +1,56 @@
-name:                ekg
-version:             0.4.0.16
-cabal-version:       >= 1.8
-synopsis:            Remote monitoring of processes
+cabal-version:      3.0
+name:               ekg
+version:            0.4.0.16
+license:            BSD-3-Clause
+license-file:       LICENSE
+maintainer:
+  Johan Tibell <johan.tibell@gmail.com>,
+  Mikhail Glushenkov <mikhail.glushenkov@gmail.com>
+
+author:             Johan Tibell
+tested-with:
+  GHC ==8.4.4
+   || ==8.6.5
+   || ==8.8.4
+   || ==8.10.7
+   || ==9.2.8
+   || ==9.4.7
+   || ==9.6.3
+   || ==9.8.1
+
+homepage:           https://github.com/tibbe/ekg
+bug-reports:        https://github.com/tibbe/ekg/issues
+synopsis:           Remote monitoring of processes
 description:
   This library lets you remotely monitor a running process over HTTP.
   It provides a simple way to integrate a monitoring server into any
   application.
-homepage:            https://github.com/tibbe/ekg
-bug-reports:         https://github.com/tibbe/ekg/issues
-license:             BSD3
-license-file:        LICENSE
-author:              Johan Tibell
-maintainer:          Johan Tibell <johan.tibell@gmail.com>,
-                     Mikhail Glushenkov <mikhail.glushenkov@gmail.com>
-category:            System, Network
-build-type:          Simple
-data-files:          assets/index.html assets/monitor.js assets/monitor.css
-                     assets/jquery.flot.min.js assets/jquery-1.6.4.min.js
-                     assets/bootstrap-1.4.0.min.css
-                     assets/chart_line_add.png assets/cross.png
-extra-source-files:  LICENSE.icons LICENSE.javascript README.md
-                     assets/jquery-1.6.4.js assets/jquery.flot.js
-                     assets/bootstrap-1.4.0.css
-                     examples/Basic.hs CHANGES.md
-tested-with:         GHC == 8.10.1, GHC == 8.8.3, GHC == 8.6.5,
-                     GHC == 8.4.4, GHC == 8.2.2, GHC == 8.0.2,
-                     GHC == 7.10.3, GHC == 7.8.4, GHC == 7.6.3
+
+category:           System, Network
+build-type:         Simple
+data-files:
+  assets/bootstrap-1.4.0.min.css
+  assets/chart_line_add.png
+  assets/cross.png
+  assets/index.html
+  assets/jquery-1.6.4.min.js
+  assets/jquery.flot.min.js
+  assets/monitor.css
+  assets/monitor.js
+
+extra-source-files:
+  assets/bootstrap-1.4.0.css
+  assets/jquery-1.6.4.js
+  assets/jquery.flot.js
+  CHANGES.md
+  examples/Basic.hs
+  LICENSE.icons
+  LICENSE.javascript
+  README.md
+
+source-repository head
+  type:     git
+  location: https://github.com/tibbe/ekg.git
 
 library
   exposed-modules:
@@ -39,23 +64,19 @@ library
     System.Remote.Json
     System.Remote.Snap
 
+  default-language: Haskell2010
+  ghc-options:      -Wall
   build-depends:
-    aeson >= 0.4 && < 1.6,
-    base >= 4.5 && < 4.15,
-    bytestring < 1.0,
-    ekg-core >= 0.1 && < 0.2,
-    ekg-json >= 0.1 && < 0.2,
-    filepath < 1.5,
-    network < 3.2,
-    snap-core < 1.1,
-    snap-server < 1.2,
-    text < 1.3,
-    time < 1.10,
-    transformers < 0.6,
-    unordered-containers < 0.3
-
-  ghc-options: -Wall
-
-source-repository head
-  type:     git
-  location: https://github.com/tibbe/ekg.git
+    , aeson                 ^>=2.2
+    , base                  >=4.11     && <5
+    , bytestring            >=0.10     && <1.0
+    , ekg-core              ^>=0.1.2.0
+    , ekg-json              ^>=0.1.0.8
+    , filepath              ^>=1.4
+    , network               >=2.6      && <3.2
+    , snap-core             ^>=1.0.5
+    , snap-server           ^>=1.1.2
+    , text                  >=1.2.4    && <2.2
+    , time                  >=1.8      && <1.13
+    , transformers          >=0.5.5    && <0.7
+    , unordered-containers  >=0.2.15   && <0.3

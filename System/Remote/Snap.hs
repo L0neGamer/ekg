@@ -4,7 +4,7 @@ module System.Remote.Snap
     ( startServer
     ) where
 
-import Control.Applicative ((<$>), (<|>))
+import Control.Applicative ((<|>))
 import Control.Exception (throwIO)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as S
@@ -88,7 +88,7 @@ acceptHeader req = getHeader "Accept" req
 format :: MonadSnap m => S.ByteString -> m a -> m a
 format fmt action = do
     req <- getRequest
-    let acceptHdr = (List.head . parseHttpAccept) <$> acceptHeader req
+    let acceptHdr = (fmap fst . List.uncons . parseHttpAccept) =<< acceptHeader req
     case acceptHdr of
         Just hdr | hdr == fmt -> action
         _ -> pass
